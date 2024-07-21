@@ -1,10 +1,5 @@
 import sys, os
-
-class JackAnalyzer:
-    def __init__(self):
-        print("constructAnalyzer")
-
-
+import JackTokenizer
 def main():
 
     # Initialize environment
@@ -25,9 +20,14 @@ def main():
     else:
         jackFiles.append(os.path.join(workingDirectory, filePath))
     
-    analyzer = JackAnalyzer()
-    for file in jackFiles:
-        print(file)
+    
+
+    for filePath in jackFiles:
+        file = open(filePath, 'r', encoding="utf-8")
+        tokenizer = JackTokenizer.JackTokenizer(file)
+
+
+        file.close()
 
 
 main()
