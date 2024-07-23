@@ -18,14 +18,17 @@ class JackTokenizer:
         self.__identifier = None
         self.__tokenType = ""
 
-        self.advance()
-        self.advance()
-        self.advance()
-        self.advance()
-        self.advance()
-        self.advance()
-        self.advance()
-        self.advance()
+        self.__hasMoreTokens = True
+
+    def __resetState(self):
+        self.__firstChar = ""
+        self.__restChars = ""
+        self.__symbol = None
+        self.__stringVal = None
+        self.__intVal = None
+        self.__keyword = None
+        self.__identifier = None
+        self.__tokenType = ""
 
     def __isSymbol(self):
         if self.__firstChar in self.__symbols:
@@ -40,9 +43,6 @@ class JackTokenizer:
     
     def __isKeyword(self):
         keywordFound = False
-        if len(self.__restChars) == 0:
-            self.__restChars = self.file.read(1)
-        
         keyword = self.__firstChar + self.__restChars
 
         # 11 is length of longest keyword
@@ -68,7 +68,7 @@ class JackTokenizer:
 
 
     def __getStringFromFile(self):
-        stringLiteral = self.__firstChar
+        stringLiteral = ""
         for char in self.__restChars:
             if char == "\"" or char == os.linesep:
                 return stringLiteral
@@ -132,6 +132,9 @@ class JackTokenizer:
         elif self.__isIdentifier():
             self.__identifier = self.__getIdentifierFromFile()
             self.__tokenType = "IDENTIFIER"
+        elif self.__firstChar == "":
+            self.__tokenType = "EOF"
+            self.__hasMoreTokens = False
         else:
             self.__tokenType = "UNKNOWN"
             sys.exit("ERROR: Unknown token type: " + self.__firstChar + self.__restChars)
@@ -170,10 +173,16 @@ class JackTokenizer:
                     nextTwo = self.file.read(1)
         
 
+    def hasMoreTokens(self):
+        return self.__hasMoreTokens
 
     def advance(self):
+        self.__resetState()
         self.__firstChar = self.file.read(1)
         self.__restChars = ""
+
+        if self.__firstChar == "":
+            self.__hasMoreTokens = False
 
         if self.__isComment():
             self.__seekPastComment()
@@ -183,13 +192,23 @@ class JackTokenizer:
             return self.advance()
 
         self.__setCurrentToken()
-        print(self.__tokenType)
 
-        for x in  [self.__symbol, self.__stringVal, self.__intVal, self.__keyword, self.__identifier]:
-            if x is not None:
-                print(x)
-        self.__symbol = None
-        self.__stringVal = None
-        self.__intVal = None
-        self.__keyword = None
-        self.__identifier = None
+
+
+    def tokenType(self):
+        return self.__tokenType
+    
+    def keyword(self):
+        return self.__keyword
+    
+    def symbol(self):
+        return self.__symbol
+    
+    def identifier(self):
+        return self.__identifier
+    
+    def intVal(self):
+        return self.__intVal
+    
+    def stringVal(self):
+        return self.__stringVal
