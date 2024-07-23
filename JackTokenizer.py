@@ -48,12 +48,12 @@ class JackTokenizer:
         # 11 is length of longest keyword
         while len(keyword) < 12:
             next = self.file.read(1)
-            if keyword in self.__keywords:
-                keywordFound = True
-                break
-            elif self.__keywordRegex.match(next):
+            if self.__keywordRegex.match(next):
                 self.__restChars = self.__restChars + next
                 keyword = keyword + next
+                if keyword in self.__keywords:
+                    keywordFound = True
+                    break
             else:
                 self.file.seek(self.file.tell() - 1,0)
                 break
@@ -101,6 +101,7 @@ class JackTokenizer:
         if int(numberLiteral) > 32767:
             sys.exit("ERROR: " + numberLiteral + " outside bounds of acceptable integer values.")
         else:
+            self.file.seek(self.file.tell() - 1,0)
             return int(numberLiteral)
         
     def __getIdentifierFromFile(self):

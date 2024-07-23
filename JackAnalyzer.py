@@ -1,5 +1,5 @@
 import sys, os, re
-import JackTokenizer
+import JackTokenizer, CompilationEngine
 from xml.sax.saxutils import escape
 
 def main():
@@ -11,6 +11,7 @@ def main():
     workingDirectory = os.getcwd()
     filePath = sys.argv[1]
     jackFiles = []
+    symbolFiles = []
     # Get jack files
     if os.path.isdir(filePath):
         dirContents = os.listdir(filePath)
@@ -22,11 +23,12 @@ def main():
         jackFiles.append(os.path.join(workingDirectory, filePath))
     
     
-
+    # Tokenize
     for item in jackFiles:
         file = open(item, 'r', encoding="utf-8")
         symbolFilePath = re.sub('.jack$','.sym.xml', item)
         symbolFile = open(symbolFilePath, 'w', encoding="utf-8")
+        symbolFiles.append(symbolFilePath)
         symbolFile.write("<tokens>" + os.linesep)
         tokenizer = JackTokenizer.JackTokenizer(file)
 
@@ -54,10 +56,22 @@ def main():
             else:
                 sys.exit("ERROR: unknown token type " + tokenizer.tokenType())
 
-            symbolFile.write("\t<" + tag + ">" + escape(value) + "</" + tag + ">" + os.linesep)
+            symbolFile.write("<" + tag + "> " + escape(value) + " </" + tag + ">" + os.linesep)
         file.close()
-        symbolFile.write("</tokens>")
+        symbolFile.write("</tokens>" + os.linesep)
         symbolFile.close()
 
+    #compile
+    for tempFile in symbolFiles:
+        file = open(tempFile, 'r', encoding="utf-8")
+        compiledFilePath = re.sub('.sym.xml$', '.xml', tempFile)
+        compiledFile = open(compiledFilePath, 'w', encoding="utf-8")
+        compilationEngine = CompilationEngine.CompilationEngine()
+
+
+
+
+        file.close()
+        compiledFile.close()
 
 main()
