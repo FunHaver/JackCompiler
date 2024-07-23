@@ -1,5 +1,7 @@
 import sys, os, re
 import JackTokenizer
+from xml.sax.saxutils import escape
+
 def main():
 
     # Initialize environment
@@ -23,28 +25,39 @@ def main():
 
     for item in jackFiles:
         file = open(item, 'r', encoding="utf-8")
-        outFilePath = re.sub('.jack$','.xml', item)
-        outFile = open(outFilePath, 'w', encoding="utf-8")
+        symbolFilePath = re.sub('.jack$','.sym.xml', item)
+        symbolFile = open(symbolFilePath, 'w', encoding="utf-8")
+        symbolFile.write("<tokens>" + os.linesep)
         tokenizer = JackTokenizer.JackTokenizer(file)
 
         while tokenizer.hasMoreTokens():
+            tag = ""
+            value = ""
             tokenizer.advance()
             if tokenizer.tokenType() == "SYMBOL":
-                outFile.write("<symbol>" + tokenizer.symbol() + "</symbol>" + os.linesep)
+                tag = "symbol"
+                value = tokenizer.symbol()
             elif tokenizer.tokenType() == "STRING_CONST":
-                outFile.write("<stringConstant>" + tokenizer.stringVal() + "</stringConstant>" + os.linesep)
+                tag = "stringConstant"
+                value = tokenizer.stringVal()
             elif tokenizer.tokenType() == "INT_CONST":
-                outFile.write("<integerConstant>" + str(tokenizer.intVal()) + "</integerConstant>" + os.linesep)
+                tag = "integerConstant"
+                value = str(tokenizer.intVal())
             elif tokenizer.tokenType() == "KEYWORD":
-                outFile.write("<keyword>" + tokenizer.keyword() + "</keyword>" + os.linesep)
+                tag = "keyword"
+                value = tokenizer.keyword()
             elif tokenizer.tokenType() == "IDENTIFIER":
-                outFile.write("<identifier>" + tokenizer.identifier() + "</identifier>" + os.linesep)
+                tag = "identifier"
+                value = tokenizer.identifier()
             elif tokenizer.tokenType() == "EOF":
                 continue
             else:
                 sys.exit("ERROR: unknown token type " + tokenizer.tokenType())
+
+            symbolFile.write("\t<" + tag + ">" + escape(value) + "</" + tag + ">" + os.linesep)
         file.close()
-        outFile.close()
+        symbolFile.write("</tokens>")
+        symbolFile.close()
 
 
 main()
