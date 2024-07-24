@@ -177,26 +177,28 @@ class CompilationEngine:
 
         if self.currentToken["tag"] != "keyword":
             sys.exit("ERROR: Statement must begin with keyword")
-
-        self.__writeNonterminalElementOpen("statement")
-        if self.currentToken["text"] == "let":
-            self.compileLet() #TODO
-        elif self.currentToken["text"] == "if":
-            self.compileIf() #TODO
-        elif self.currentToken["text"] == "while":
-            self.compileWhile() #TODO
-        elif self.currentToken["text"] == "do":
-            self.compileDo() #TODO
-        elif self.currentToken["text"] == "return":
-            self.compileReturn() #TODO
-        else:
-            sys.exit("ERROR: Invalid keyword '" + self.currentToken["text"] + "' for statement beginning")
-        
-        self.__writeNonterminalElementClose("statement")
+        while self.__isStatementKeyword(self.currentToken):
+            self.__writeNonterminalElementOpen("statement")
+            
+            if self.currentToken["text"] == "let":
+                self.compileLet() #TODO
+            elif self.currentToken["text"] == "if":
+                self.compileIf() #TODO
+            elif self.currentToken["text"] == "while":
+                self.compileWhile() #TODO
+            elif self.currentToken["text"] == "do":
+                self.compileDo() #TODO
+            elif self.currentToken["text"] == "return":
+                self.compileReturn() #TODO
+            else:
+                sys.exit("ERROR: Invalid keyword '" + self.currentToken["text"] + "' for statement beginning")
+            
+            self.__writeNonterminalElementClose("statement")
         self.__writeNonterminalElementClose("statements")
 
     def compileLet(self):
         self.__writeNonterminalElementOpen("letStatement")
+
         self.__writeTerminalElement() # let
         self.__writeTerminalElement() # varName
 
@@ -205,6 +207,65 @@ class CompilationEngine:
             self.compileExpression() #TODO
             self.__writeTerminalElement() # ]
 
+        self.__writeTerminalElement() # =
+        self.compileExpression() #TODO
+        self.__writeTerminalElement() # ;
         self.__writeNonterminalElementClose("letStatement")
 
+    def compileIf(self):
+        self.__writeNonterminalElementOpen("ifStatement")
 
+        self.__writeTerminalElement() # if
+        self.__writeTerminalElement() # (
+        self.compileExpression() #TODO
+        self.__writeTerminalElement() # )
+
+        self.__writeTerminalElement() # {
+        self.compileStatements() #TODO
+        self.__writeTerminalElement() # }
+
+        if self.currentToken["tag"] == "keyword" and self.currentToken["text"] == "else":
+            self.__writeTerminalElement() # else
+            self.__writeTerminalElement() # {
+            self.compileStatements() #TODO
+            self.__writeTerminalElement() # }
+
+        self.__writeNonterminalElementClose("ifStatement")
+
+    def compileWhile(self):
+        self.__writeNonterminalElementOpen("whileStatement")
+
+        self.__writeTerminalElement() # while
+        self.__writeTerminalElement() # (
+        self.compileExpression() #TODO
+        self.__writeTerminalElement() # )
+        
+        self.__writeTerminalElement() # {
+        self.compileStatements() #TODO
+        self.__writeTerminalElement() # }
+
+        self.__writeNonterminalElementClose("whileStatement")
+
+    def compileDo(self):
+        self.__writeNonterminalElementOpen("doStatement")
+        
+        self.__writeTerminalElement() # do
+        self.compileExpression() #TODO only for subroutine calls
+        self.__writeTerminalElement() # ;
+
+        self.__writeNonterminalElementClose("doStatement")
+
+    def compileReturn(self):
+        self.__writeNonterminalElementOpen("returnStatement")
+
+        self.__writeTerminalElement() # return
+
+        if self.currentToken["tag"] != "symbol" and self.currentToken["text"] != ";":
+            self.compileExpression() #TODO
+
+        self.__writeTerminalElement() # ;
+
+        self.__writeNonterminalElementClose("returnStatement")
+
+    def compileExpression():
+        sys.exit("TODO: implement compileExpression")
