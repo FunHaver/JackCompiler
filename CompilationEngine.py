@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ElementTree
-from xml.sax.saxutils import unescape
+from xml.sax.saxutils import escape, unescape
 import os, sys
 class CompilationEngine:
     def __init__(self, tokenFile, compiledFile):
@@ -29,7 +29,7 @@ class CompilationEngine:
         writeString = ""
         for x in range(self.__indentLevel):
             writeString += "  "
-        writeString = writeString + "<" + self.currentToken["tag"] + "> " + self.currentToken["text"] + " </" + self.currentToken["tag"] + ">" + os.linesep
+        writeString = writeString + "<" + self.currentToken["tag"] + "> " + escape(self.currentToken["text"]) + " </" + self.currentToken["tag"] + ">" + os.linesep
         self.compiledFile.write(writeString)
    
 
