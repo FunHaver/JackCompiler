@@ -26,12 +26,12 @@ def main():
     # Tokenize
     for item in jackFiles:
         file = open(item, 'r', encoding="utf-8")
-        symbolFilePath = re.sub('.jack$','.sym.xml', item)
+        symbolFilePath = re.sub('.jack$','T.xml', item)
         symbolFile = open(symbolFilePath, 'w', encoding="utf-8")
         symbolFiles.append(symbolFilePath)
         symbolFile.write("<tokens>" + os.linesep)
         tokenizer = JackTokenizer.JackTokenizer(file)
-
+        symbolFilePath.split(os.pathsep)
         while tokenizer.hasMoreTokens():
             tag = ""
             value = ""
@@ -64,7 +64,7 @@ def main():
     #compile
     for tempFile in symbolFiles:
         tokenFile = open(tempFile, 'r', encoding="utf-8")
-        compiledFilePath = re.sub('.sym.xml$', '.xml', tempFile)
+        compiledFilePath = re.sub('T.xml$', '.xml', tempFile)
         compiledFile = open(compiledFilePath, 'w', encoding="utf-8")
         compilationEngine = CompilationEngine.CompilationEngine(tokenFile, compiledFile)
         compilationEngine.compileClass()
