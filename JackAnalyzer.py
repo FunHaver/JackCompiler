@@ -63,10 +63,11 @@ def main():
 
     #compile
     for tempFile in symbolFiles:
-        file = open(tempFile, 'r', encoding="utf-8")
+        tokenFile = open(tempFile, 'r', encoding="utf-8")
         compiledFilePath = re.sub('.sym.xml$', '.xml', tempFile)
         compiledFile = open(compiledFilePath, 'w', encoding="utf-8")
-        compilationEngine = CompilationEngine.CompilationEngine()
+        compilationEngine = CompilationEngine.CompilationEngine(tokenFile, compiledFile)
+        compilationEngine.compileClass()
 
 
 
