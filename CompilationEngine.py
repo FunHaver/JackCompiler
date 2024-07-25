@@ -14,7 +14,16 @@ class CompilationEngine:
         self.__tokenIdx = -1
         self.__indentLevel = 0
 
-        
+        self.__classVarDecKeywords = set(["field", "static"])
+        self.__subroutineKeywords = set(["constructor", "method", "function"])
+        self.__statementKeywords = set(["let","do","if","while","return"])
+        self.__tagConstants = set(["integerConstant", "stringConstant"])
+        self.__keywordConstants = set(["true", "false", "null", "this"])
+        self.__lookAheadSymbols = set(["[","(","."])
+        self.__unaryOps = set(["-","~"])
+        self.__opSymbols = set(["+","-","*","/","&","|","<",">","="])
+
+
     def __advanceToken(self):
         if self.__tokenIdx != (len(self.__tokenList) - 1):
             self.__tokenIdx = self.__tokenIdx + 1
@@ -56,9 +65,7 @@ class CompilationEngine:
    
     def __isClassVarDecKeyword(self, token):
         if token["tag"] == "keyword":
-            if token["text"] == "field":
-                return True
-            elif token["text"] == "static":
+            if token["text"] in self.__classVarDecKeywords:
                 return True
             else:
                 return False
@@ -67,11 +74,7 @@ class CompilationEngine:
 
     def __isSubroutineKeyword(self, token):
         if token["tag"] == "keyword":
-            if token["text"] == "constructor":
-                return True
-            elif token["text"] == "method":
-                return True
-            elif token["text"] == "function":
+            if token["text"] in self.__subroutineKeywords:
                 return True
             else:
                 return False
@@ -80,15 +83,7 @@ class CompilationEngine:
 
     def __isStatementKeyword(self, token):
         if token["tag"] == "keyword":
-            if token["text"] == "let":
-                return True
-            elif token["text"] == "do":
-                return True
-            elif token["text"] == "if":
-                return True
-            elif token["text"] == "while":
-                return True
-            elif token["text"] == "return":
+            if token["text"] in self.__statementKeywords:
                 return True
             else:
                 return False
@@ -96,18 +91,10 @@ class CompilationEngine:
             return False
         
     def __isConstant(self, token):
-        if token["tag"] == "integerConstant":
-            return True
-        elif token["tag"] == "stringConstant":
+        if token["tag"] in self.__tagConstants:
             return True
         elif token["tag"] == "keyword":
-            if token["text"] == "true":
-                return True
-            elif token["text"] == "false":
-                return True
-            elif token["text"] == "null":
-                return True
-            elif token["text"] == "this":
+            if token["text"] in self.__keywordConstants:
                 return True
             else:
                 return False  
@@ -117,11 +104,7 @@ class CompilationEngine:
     def __isLookAheadExpression(self, tokenOne, tokenTwo):
         if tokenOne["tag"] == "identifier":
             if tokenTwo["tag"] == "symbol":
-                if tokenTwo["text"] == "[":
-                    return True
-                elif tokenTwo["text"] == ".":
-                    return True
-                elif tokenTwo["text"] == "(":
+                if tokenTwo["text"] in self.__lookAheadSymbols:
                     return True
                 else:
                     return False
@@ -138,9 +121,7 @@ class CompilationEngine:
         elif token["tag"] == "symbol":
             if token["text"] == "(":
                 return True
-            elif token["text"] == "-":
-                return True
-            elif token["text"] == "~":
+            elif self.__isUnaryOp(token):
                 return True
             else:
                 return False
@@ -149,11 +130,18 @@ class CompilationEngine:
             
     def __isUnaryOp(self, token):
         if token["tag"] == "symbol":
-            if token["text"] == "-":
-                return True
-            elif token["text"] == "~":
+            if token["text"] in self.__unaryOps:
                 return True
             else:
+                return False
+        else:
+            return False
+        
+    def __isOp(self, token):
+        if token["tag"] == "symbol":
+            if token["text"] in self.__opSymbols:
+                return True
+            else: 
                 return False
         else:
             return False
@@ -367,6 +355,9 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("expression")
         while self.__isTerm(self.currentToken):
             self.compileTerm() #TODO
+
+            if self.__isOp(self.currentToken):
+                self.__writeTerminalElement() # op
         self.__writeNonterminalElementClose("expression")
 
     def compileExpressionList(self):
@@ -374,6 +365,8 @@ class CompilationEngine:
         loopCount = 0
         while self.__isTerm(self.currentToken):
             self.compileExpression()
+            if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
+                break
             self.__writeTerminalElement() # ,
             loopCount += 1
             if loopCount > 25:
@@ -385,9 +378,8 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("term")
         previousToken = copy.deepcopy(self.currentToken)
         self.__advanceToken()
-
+        
         if self.__isLookAheadExpression(previousToken, self.currentToken):
-            # self.__regressToken() # backtrack after looking forward
             if self.currentToken["text"] == "(" or self.currentToken["text"] == ".":
                 self.__regressToken()
                 self.__compileSubroutine()
@@ -408,7 +400,7 @@ class CompilationEngine:
                 self.__writeTerminalElement() # unaryOp
             if self.__isTerm(self.currentToken):
                 self.compileTerm()
-    
+
         self.__writeNonterminalElementClose("term")
 
     def __compileSubroutine(self):
