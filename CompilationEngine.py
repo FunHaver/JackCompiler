@@ -355,7 +355,7 @@ class CompilationEngine:
     def compileExpression(self):
         self.__writeNonterminalElementOpen("expression")
         while self.__isTerm(self.currentToken):
-            self.compileTerm() #TODO
+            self.compileTerm()
 
             if self.__isOp(self.currentToken):
                 self.__writeTerminalElement() # op
@@ -397,9 +397,16 @@ class CompilationEngine:
             if self.__isConstant(self.currentToken) or self.currentToken["tag"] == "identifier":
                 self.__writeTerminalElement() # integerConstant | stringConstant | keywordConstant | varName
 
-            if self.__isUnaryOp(self.currentToken):
+            elif self.__isUnaryOp(self.currentToken):
                 self.__writeTerminalElement() # unaryOp
-            if self.__isTerm(self.currentToken):
+                self.compileTerm()
+            
+            elif self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "(":
+                self.__writeTerminalElement() # (
+                self.compileExpression()
+                self.__writeTerminalElement() # )
+
+            elif self.__isTerm(self.currentToken):
                 self.compileTerm()
 
         self.__writeNonterminalElementClose("term")

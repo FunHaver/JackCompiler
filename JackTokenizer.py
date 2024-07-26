@@ -160,6 +160,7 @@ class JackTokenizer:
             next = self.file.read(1)
             while next != os.linesep:
                 next = self.file.read(1)
+            self.file.seek(self.file.tell() - 1,0)
         else:
             nextOne = self.file.read(1)
             nextTwo = self.file.read(1)
@@ -180,7 +181,6 @@ class JackTokenizer:
     def advance(self):
         self.__resetState()
         self.__firstChar = self.file.read(1)
-        self.__restChars = ""
 
         if self.__firstChar == "":
             self.__hasMoreTokens = False
