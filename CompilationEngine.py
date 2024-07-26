@@ -146,6 +146,9 @@ class CompilationEngine:
         else:
             return False
     
+    def __isCloseCurlyBrace(self,token):
+        return token["tag"] == "symbol" and token["text"] == "}"
+    
     def compileClass(self):
         finishedClassCompile = False
         self.__advanceToken()
@@ -161,7 +164,7 @@ class CompilationEngine:
                 self.compileClassVarDec()
             elif self.__isSubroutineKeyword(self.currentToken):
                 self.compileSubroutine() 
-            elif self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "}": # THE LAST TOKEN IN A JACK FILE
+            elif self.__isCloseCurlyBrace(self.currentToken): # THE LAST TOKEN IN A JACK FILE
                 self.__writeTerminalElement() # }
                 finishedClassCompile = True
             else:
@@ -259,7 +262,7 @@ class CompilationEngine:
     def compileStatements(self):
         self.__writeNonterminalElementOpen("statements")
 
-        if self.currentToken["tag"] != "keyword":
+        if self.currentToken["tag"] != "keyword" and not(self.__isCloseCurlyBrace(self.currentToken)):
             sys.exit("ERROR: Statement must begin with keyword")
         while self.__isStatementKeyword(self.currentToken):
 
@@ -323,7 +326,7 @@ class CompilationEngine:
         self.__writeTerminalElement() # )
         
         self.__writeTerminalElement() # {
-        self.compileStatements() 
+        self.compileStatements()
         self.__writeTerminalElement() # }
 
         self.__writeNonterminalElementClose("whileStatement")
