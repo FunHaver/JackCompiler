@@ -9,7 +9,7 @@ class CompilationEngine:
         self.__tokenList = []
         # The token xml file is flat. There is no recursion needed to get the information
         for child in ElementTree.parse(self.tokenFile).getroot():
-            self.__tokenList.append({"tag": child.tag, "text": unescape("".join(child.text.split()))})
+            self.__tokenList.append({"tag": child.tag, "text": unescape(child.text[1:-1])})
         self.currentToken = None
         self.__tokenIdx = -1
         self.__indentLevel = 0
@@ -262,7 +262,6 @@ class CompilationEngine:
         if self.currentToken["tag"] != "keyword":
             sys.exit("ERROR: Statement must begin with keyword")
         while self.__isStatementKeyword(self.currentToken):
-            self.__writeNonterminalElementOpen("statement")
 
             if self.currentToken["text"] == "let":
                 self.compileLet() 
@@ -277,7 +276,6 @@ class CompilationEngine:
             else:
                 self.__exitError()
             
-            self.__writeNonterminalElementClose("statement")
         self.__writeNonterminalElementClose("statements")
 
     def compileLet(self):
@@ -334,7 +332,7 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("doStatement")
         
         self.__writeTerminalElement() # do
-        self.compileExpression()
+        self.__compileSubroutine()
         self.__writeTerminalElement() # ;
 
         self.__writeNonterminalElementClose("doStatement")
