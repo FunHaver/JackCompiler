@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ElementTree
 import copy
 from xml.sax.saxutils import escape, unescape
+import SymbolTable
 import os, sys
 class CompilationEngine:
     def __init__(self, tokenFile, compiledFile):
@@ -11,6 +12,7 @@ class CompilationEngine:
         for child in ElementTree.parse(self.tokenFile).getroot():
             self.__tokenList.append({"tag": child.tag, "text": unescape(child.text[1:-1])})
         self.currentToken = None
+        self.__symbolTable = SymbolTable.SymbolTable()
         self.__tokenIdx = -1
         self.__indentLevel = 0
 
