@@ -19,11 +19,14 @@ class CompilationEngine:
         self.__indentLevel = 0
 
         self.__classVarDecKeywords = set(["field", "static"])
+        self.__varDecKeywords = set(["var"])
+        self.__classDecKeywords = set(["class"])
         self.__subroutineKeywords = set(["constructor", "method", "function"])
         self.__statementKeywords = set(["let","do","if","while","return"])
+        self.__typeKeywords = set(["int","char","boolean"])
+
         self.__tagConstants = set(["integerConstant", "stringConstant"])
         self.__keywordConstants = set(["true", "false", "null", "this"])
-        self.__definitionKeywords = set(["var","static","method","class","function","constructor"])
         self.__lookAheadSymbols = set(["[","(","."])
         self.__unaryOps = set(["-","~"])
         self.__opSymbols = set(["+","-","*","/","&","|","<",">","="])
@@ -74,6 +77,15 @@ class CompilationEngine:
         writeString = writeString + "</" + tagName + ">" + os.linesep
         self.compiledFile.write(writeString)
    
+    # def __isClassDecKeyword(self, token):
+    #     if token["tag"] == "keyword":
+    #         if token["text"] in self.__classDecKeywords:
+    #             return True
+    #         else:
+    #             return False
+    #     else:
+    #         return False
+
     def __isClassVarDecKeyword(self, token):
         if token["tag"] == "keyword":
             if token["text"] in self.__classVarDecKeywords:
@@ -82,8 +94,17 @@ class CompilationEngine:
                 return False
         else:
             return False
+    
+    # def __isVarDecKeyword(self,token):
+    #     if token["tag"] == "keyword":
+    #         if token["text"] in self.__varDecKeywords:
+    #             return True
+    #         else:
+    #             return False
+    #     else: 
+    #         return False
 
-    def __isSubroutineKeyword(self, token):
+    def __isSubroutineDecKeyword(self, token):
         if token["tag"] == "keyword":
             if token["text"] in self.__subroutineKeywords:
                 return True
@@ -100,6 +121,18 @@ class CompilationEngine:
                 return False
         else:
             return False
+        
+    # def __isTypeKeyword(self, token):
+    #     if token["tag"] == "keyword":
+    #         if token["text"] in self.__typeKeywords:
+    #             return True
+    #         else:
+    #             return False
+    #     else:
+    #         return False
+        
+    # def __isArgDec(self, token):
+    #     return self.__isTypeKeyword(token) or token["tag"] == "identifier"
         
     def __isConstant(self, token):
         if token["tag"] in self.__tagConstants:
@@ -161,9 +194,37 @@ class CompilationEngine:
         return token["tag"] == "symbol" and token["text"] == "}"
 
 
-    def __compileIdentifier(self):
-        # Scope?
+    # Builds a symbol out of the identifier and related tokens
+    # final token processed in __compileIdentifier must be an identifier
+    # TODO: Assess need for removal
+    # def __compileIdentifier(self):
+
+    #     if self.__isClassDecKeyword(self.currentToken):
+    #         self.__writeTerminalToken() # class
+    #         self.__writeTerminalToken() # className
+    #     elif self.__isClassVarDecKeyword(self.currentToken) or self.__isVarDecKeyword(self.currentToken):
+    #         self.__writeTerminalToken() # static | field | var
+    #         self.__writeTerminalToken() # int | char | boolean | className
+    #         self.__writeTerminalToken() # varName
+    #     elif self.__isSubroutineDecKeyword(self.currentToken):
+    #         self.__writeTerminalToken() # constructor | function | method
+    #         self.__writeTerminalToken() # type | void
+    #         self.__writeTerminalToken() # subroutineName
+    #     elif self.__isArgDec(self.currentToken):
+    #         self.__writeTerminalToken() # int | boolean | char | className
+    #         self.__writeTerminalToken() # varName
+
+    def __writeIdentifier(self, name, category, definition=False):
+        symbolState = "used"
+        if definition:
+            symbolState = "defined"
+        self.__writeNonterminalElementOpen("identifier") # className
+        self.__writeTerminalElement("name", name)
+        self.__writeTerminalElement("category", category)
+        self.__writeTerminalElement("state", symbolState)
+        self.__writeNonterminalElementClose("identifier")
         self.__advanceToken()
+
 
     def compileClass(self):
         finishedClassCompile = False
@@ -171,14 +232,14 @@ class CompilationEngine:
 
         self.__writeNonterminalElementOpen("class")
         self.__writeTerminalToken() # class
-        self.__writeTerminalToken() # className
+        self.__writeIdentifier(self.currentToken["text"], "class", True) # className
         self.__writeTerminalToken() # {
         
         while not finishedClassCompile:
 
             if self.__isClassVarDecKeyword(self.currentToken):
                 self.compileClassVarDec()
-            elif self.__isSubroutineKeyword(self.currentToken):
+            elif self.__isSubroutineDecKeyword(self.currentToken):
                 self.compileSubroutine() 
             elif self.__isCloseCurlyBrace(self.currentToken): # THE LAST TOKEN IN A JACK FILE
                 self.__writeTerminalToken() # }
@@ -351,7 +412,7 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("doStatement")
         
         self.__writeTerminalToken() # do
-        self.__compileSubroutine()
+        self.__compileSubroutineCall()
         self.__writeTerminalToken() # ;
 
         self.__writeNonterminalElementClose("doStatement")
@@ -399,7 +460,7 @@ class CompilationEngine:
         if self.__isLookAheadExpression(previousToken, self.currentToken):
             if self.currentToken["text"] == "(" or self.currentToken["text"] == ".":
                 self.__regressToken()
-                self.__compileSubroutine()
+                self.__compileSubroutineCall()
             elif self.currentToken["text"] == "[" :
                 self.__regressToken()
                 self.__writeTerminalToken() # varName
@@ -427,7 +488,7 @@ class CompilationEngine:
 
         self.__writeNonterminalElementClose("term")
 
-    def __compileSubroutine(self):
+    def __compileSubroutineCall(self):
         self.__writeTerminalToken() # subRoutineName | (className | varName)
         if self.currentToken["tag"] == "symbol":
             if self.currentToken["text"] == "(":
