@@ -1,8 +1,9 @@
 import xml.etree.ElementTree as ElementTree
-import copy
 from xml.sax.saxutils import escape, unescape
+import copy
 import SymbolTable
 import os, sys
+
 class CompilationEngine:
     def __init__(self, tokenFile, compiledFile):
         self.tokenFile = tokenFile
@@ -12,7 +13,8 @@ class CompilationEngine:
         for child in ElementTree.parse(self.tokenFile).getroot():
             self.__tokenList.append({"tag": child.tag, "text": unescape(child.text[1:-1])})
         self.currentToken = None
-        self.__symbolTable = SymbolTable.SymbolTable()
+        self.__classSymbolTable = SymbolTable.SymbolTable()
+        self.__subroutineSymbolTable = SymbolTable.SymbolTable()
         self.__tokenIdx = -1
         self.__indentLevel = 0
 
@@ -21,6 +23,7 @@ class CompilationEngine:
         self.__statementKeywords = set(["let","do","if","while","return"])
         self.__tagConstants = set(["integerConstant", "stringConstant"])
         self.__keywordConstants = set(["true", "false", "null", "this"])
+        self.__definitionKeywords = set(["var","static","method","class","function","constructor"])
         self.__lookAheadSymbols = set(["[","(","."])
         self.__unaryOps = set(["-","~"])
         self.__opSymbols = set(["+","-","*","/","&","|","<",">","="])
@@ -40,13 +43,19 @@ class CompilationEngine:
         
     def __exitError(self):
         sys.exit("ERROR: Token " + str(self.__tokenIdx + 1) + " Invalid token '" + self.currentToken["text"] + "' in " + self.tokenFile.name)
-    
-    def __writeTerminalElement(self):
+
+    def __writeTerminalElement(self, tag, text):
         writeString = ""
         for x in range(self.__indentLevel):
             writeString += "  "
-        writeString = writeString + "<" + self.currentToken["tag"] + "> " + escape(self.currentToken["text"]) + " </" + self.currentToken["tag"] + ">" + os.linesep
+
+        writeString = writeString + "<" + tag + "> " + escape(str(text)) + " </" + tag + ">" + os.linesep
         self.compiledFile.write(writeString)
+        
+    def __writeTerminalToken(self):
+        #TODO: intermediate representation of identifier semantics
+
+        self.__writeTerminalElement(self.currentToken["tag"], self.currentToken["text"])
         self.__advanceToken()
 
     def __writeNonterminalElementOpen(self, tagName):
@@ -150,15 +159,20 @@ class CompilationEngine:
     
     def __isCloseCurlyBrace(self,token):
         return token["tag"] == "symbol" and token["text"] == "}"
-    
+
+
+    def __compileIdentifier(self):
+        # Scope?
+        self.__advanceToken()
+
     def compileClass(self):
         finishedClassCompile = False
         self.__advanceToken()
 
         self.__writeNonterminalElementOpen("class")
-        self.__writeTerminalElement() # class
-        self.__writeTerminalElement() # className
-        self.__writeTerminalElement() # {
+        self.__writeTerminalToken() # class
+        self.__writeTerminalToken() # className
+        self.__writeTerminalToken() # {
         
         while not finishedClassCompile:
 
@@ -167,7 +181,7 @@ class CompilationEngine:
             elif self.__isSubroutineKeyword(self.currentToken):
                 self.compileSubroutine() 
             elif self.__isCloseCurlyBrace(self.currentToken): # THE LAST TOKEN IN A JACK FILE
-                self.__writeTerminalElement() # }
+                self.__writeTerminalToken() # }
                 finishedClassCompile = True
             else:
                 self.__exitError()
@@ -178,36 +192,36 @@ class CompilationEngine:
 
     def compileClassVarDec(self):
         self.__writeNonterminalElementOpen("classVarDec")
-        self.__writeTerminalElement() # 'static' | 'field'
-        self.__writeTerminalElement() # type
-        self.__writeTerminalElement() # varName
+        self.__writeTerminalToken() # 'static' | 'field'
+        self.__writeTerminalToken() # type
+        self.__writeTerminalToken() # varName
         
         # (',' varName)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             loopCount = 0
             while self.currentToken["text"] != ";":
-                self.__writeTerminalElement() # ,
-                self.__writeTerminalElement() # varName
+                self.__writeTerminalToken() # ,
+                self.__writeTerminalToken() # varName
                 loopCount += 1
 
                 if loopCount > 25:
                     print("ERROR: Stuck in loop writing var defs, did you forget a ';' ?")
                     self.__exitError()
         
-        self.__writeTerminalElement() # ;
+        self.__writeTerminalToken() # ;
         self.__writeNonterminalElementClose("classVarDec")
 
 
     def compileSubroutine(self):
         self.__writeNonterminalElementOpen("subroutineDec")
-        self.__writeTerminalElement() # 'constructor' | 'function' | 'method'
-        self.__writeTerminalElement() # 'void' | type
-        self.__writeTerminalElement() # subroutineName
-        self.__writeTerminalElement() # (
+        self.__writeTerminalToken() # 'constructor' | 'function' | 'method'
+        self.__writeTerminalToken() # 'void' | type
+        self.__writeTerminalToken() # subroutineName
+        self.__writeTerminalToken() # (
         self.compileParameterList()
-        self.__writeTerminalElement() # )
+        self.__writeTerminalToken() # )
         self.__writeNonterminalElementOpen("subroutineBody")
-        self.__writeTerminalElement() # {
+        self.__writeTerminalToken() # {
 
         while self.currentToken["tag"] != "symbol" and self.currentToken["text"] != "}":
             # varDec* 
@@ -219,23 +233,23 @@ class CompilationEngine:
             else:
                 self.__exitError()
         
-        self.__writeTerminalElement() # }
+        self.__writeTerminalToken() # }
         self.__writeNonterminalElementClose("subroutineBody")
         self.__writeNonterminalElementClose("subroutineDec")
 
     def compileVarDec(self):
         self.__writeNonterminalElementOpen("varDec")
-        self.__writeTerminalElement() # var
-        self.__writeTerminalElement() # 'void' | type
-        self.__writeTerminalElement() # varName
+        self.__writeTerminalToken() # var
+        self.__writeTerminalToken() # 'void' | type
+        self.__writeTerminalToken() # varName
 
         # (',' varName)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             while self.currentToken["text"] != ";":
-                self.__writeTerminalElement() # ,
-                self.__writeTerminalElement() # varName
+                self.__writeTerminalToken() # ,
+                self.__writeTerminalToken() # varName
         
-        self.__writeTerminalElement() # ;        
+        self.__writeTerminalToken() # ;        
         self.__writeNonterminalElementClose("varDec")
 
     def compileParameterList(self):
@@ -244,14 +258,14 @@ class CompilationEngine:
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
             self.__writeNonterminalElementClose("parameterList")
         else:
-            self.__writeTerminalElement() # type
-            self.__writeTerminalElement() # varName
+            self.__writeTerminalToken() # type
+            self.__writeTerminalToken() # varName
             loopCount = 0
 
             while not(self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")"):
-                self.__writeTerminalElement() # ,
-                self.__writeTerminalElement() # type
-                self.__writeTerminalElement() # varName
+                self.__writeTerminalToken() # ,
+                self.__writeTerminalToken() # type
+                self.__writeTerminalToken() # varName
                 loopCount += 1
                 if loopCount > 25:
                     print("Stuck in infinite loop, improperly formed parameter list")
@@ -286,71 +300,71 @@ class CompilationEngine:
     def compileLet(self):
         self.__writeNonterminalElementOpen("letStatement")
 
-        self.__writeTerminalElement() # let
-        self.__writeTerminalElement() # varName
+        self.__writeTerminalToken() # let
+        self.__writeTerminalToken() # varName
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "[":
-            self.__writeTerminalElement() # [
+            self.__writeTerminalToken() # [
             self.compileExpression() 
-            self.__writeTerminalElement() # ]
+            self.__writeTerminalToken() # ]
 
-        self.__writeTerminalElement() # =
+        self.__writeTerminalToken() # =
         self.compileExpression() 
-        self.__writeTerminalElement() # ;
+        self.__writeTerminalToken() # ;
         self.__writeNonterminalElementClose("letStatement")
 
     def compileIf(self):
         self.__writeNonterminalElementOpen("ifStatement")
 
-        self.__writeTerminalElement() # if
-        self.__writeTerminalElement() # (
+        self.__writeTerminalToken() # if
+        self.__writeTerminalToken() # (
         self.compileExpression() 
-        self.__writeTerminalElement() # )
+        self.__writeTerminalToken() # )
 
-        self.__writeTerminalElement() # {
+        self.__writeTerminalToken() # {
         self.compileStatements()
-        self.__writeTerminalElement() # }
+        self.__writeTerminalToken() # }
 
         if self.currentToken["tag"] == "keyword" and self.currentToken["text"] == "else":
-            self.__writeTerminalElement() # else
-            self.__writeTerminalElement() # {
+            self.__writeTerminalToken() # else
+            self.__writeTerminalToken() # {
             self.compileStatements()
-            self.__writeTerminalElement() # }
+            self.__writeTerminalToken() # }
 
         self.__writeNonterminalElementClose("ifStatement")
 
     def compileWhile(self):
         self.__writeNonterminalElementOpen("whileStatement")
 
-        self.__writeTerminalElement() # while
-        self.__writeTerminalElement() # (
+        self.__writeTerminalToken() # while
+        self.__writeTerminalToken() # (
         self.compileExpression() 
-        self.__writeTerminalElement() # )
+        self.__writeTerminalToken() # )
         
-        self.__writeTerminalElement() # {
+        self.__writeTerminalToken() # {
         self.compileStatements()
-        self.__writeTerminalElement() # }
+        self.__writeTerminalToken() # }
 
         self.__writeNonterminalElementClose("whileStatement")
 
     def compileDo(self):
         self.__writeNonterminalElementOpen("doStatement")
         
-        self.__writeTerminalElement() # do
+        self.__writeTerminalToken() # do
         self.__compileSubroutine()
-        self.__writeTerminalElement() # ;
+        self.__writeTerminalToken() # ;
 
         self.__writeNonterminalElementClose("doStatement")
 
     def compileReturn(self):
         self.__writeNonterminalElementOpen("returnStatement")
 
-        self.__writeTerminalElement() # return
+        self.__writeTerminalToken() # return
 
         if self.currentToken["tag"] != "symbol" and self.currentToken["text"] != ";":
             self.compileExpression()
 
-        self.__writeTerminalElement() # ;
+        self.__writeTerminalToken() # ;
 
         self.__writeNonterminalElementClose("returnStatement")
 
@@ -360,7 +374,7 @@ class CompilationEngine:
             self.compileTerm()
 
             if self.__isOp(self.currentToken):
-                self.__writeTerminalElement() # op
+                self.__writeTerminalToken() # op
         self.__writeNonterminalElementClose("expression")
 
     def compileExpressionList(self):
@@ -370,7 +384,7 @@ class CompilationEngine:
             self.compileExpression()
             if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
                 break
-            self.__writeTerminalElement() # ,
+            self.__writeTerminalToken() # ,
             loopCount += 1
             if loopCount > 25:
                 print("Stuck in infinite loop, improperly formed expression list")
@@ -388,25 +402,25 @@ class CompilationEngine:
                 self.__compileSubroutine()
             elif self.currentToken["text"] == "[" :
                 self.__regressToken()
-                self.__writeTerminalElement() # varName
-                self.__writeTerminalElement() # [
+                self.__writeTerminalToken() # varName
+                self.__writeTerminalToken() # [
                 self.compileExpression()
-                self.__writeTerminalElement() # ]
+                self.__writeTerminalToken() # ]
             else: 
                 sys.exit("ERROR: array and advanced expressions not implemented")
         else:   
             self.__regressToken() # backtrack after looking forward
             if self.__isConstant(self.currentToken) or self.currentToken["tag"] == "identifier":
-                self.__writeTerminalElement() # integerConstant | stringConstant | keywordConstant | varName
+                self.__writeTerminalToken() # integerConstant | stringConstant | keywordConstant | varName
 
             elif self.__isUnaryOp(self.currentToken):
-                self.__writeTerminalElement() # unaryOp
+                self.__writeTerminalToken() # unaryOp
                 self.compileTerm()
             
             elif self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "(":
-                self.__writeTerminalElement() # (
+                self.__writeTerminalToken() # (
                 self.compileExpression()
-                self.__writeTerminalElement() # )
+                self.__writeTerminalToken() # )
 
             elif self.__isTerm(self.currentToken):
                 self.compileTerm()
@@ -414,15 +428,15 @@ class CompilationEngine:
         self.__writeNonterminalElementClose("term")
 
     def __compileSubroutine(self):
-        self.__writeTerminalElement() # subRoutineName | (className | varName)
+        self.__writeTerminalToken() # subRoutineName | (className | varName)
         if self.currentToken["tag"] == "symbol":
             if self.currentToken["text"] == "(":
-                self.__writeTerminalElement() # (
+                self.__writeTerminalToken() # (
                 self.compileExpressionList()
-                self.__writeTerminalElement() # )
+                self.__writeTerminalToken() # )
             elif self.currentToken["text"] == ".":
-                self.__writeTerminalElement() # .
-                self.__writeTerminalElement() # subRoutineName
-                self.__writeTerminalElement() # (
+                self.__writeTerminalToken() # .
+                self.__writeTerminalToken() # subRoutineName
+                self.__writeTerminalToken() # (
                 self.compileExpressionList()
-                self.__writeTerminalElement() # )
+                self.__writeTerminalToken() # )
