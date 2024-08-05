@@ -2,7 +2,12 @@ import sys
 class SymbolTable :
     def __init__(self):
         self.__table = {}
-
+        self.__varCounts = {            
+            "STATIC": 0,
+            "FIELD": 0,
+            "VAR": 0,
+            "ARG": 0
+        }
     def startSubroutine(self):
         del self.__table
         self.__table = {}
@@ -26,8 +31,9 @@ class SymbolTable :
 
     # Increments count for kind of var, returns incremented number
     def __incCount(self, kind):
+        count = self.__varCounts[kind]
         self.__varCounts[kind] += 1
-        return self.varCount(kind)
+        return count
 
     # Gets the count of the kind of variables in table
     def varCount(self, kind):
@@ -48,7 +54,7 @@ class SymbolTable :
     # Gets the index of the variable, indexes are separated by kind.
     # Returns -1 if symbol is not found
     def indexOf(self, name):
-        if name in self.__table[name]:
+        if name in self.__table:
             return self.__table[name]["index"]
         else:
             return -1

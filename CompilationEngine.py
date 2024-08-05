@@ -55,11 +55,12 @@ class CompilationEngine:
         writeString = writeString + "<" + tag + "> " + escape(str(text)) + " </" + tag + ">" + os.linesep
         self.compiledFile.write(writeString)
         
+    # returns the token that was written
     def __writeTerminalToken(self):
-        #TODO: intermediate representation of identifier semantics
-
         self.__writeTerminalElement(self.currentToken["tag"], self.currentToken["text"])
+        writtenToken = copy.deepcopy(self.currentToken)
         self.__advanceToken()
+        return writtenToken
 
     def __writeNonterminalElementOpen(self, tagName):
         writeString = ""
@@ -214,14 +215,33 @@ class CompilationEngine:
     #         self.__writeTerminalToken() # int | boolean | char | className
     #         self.__writeTerminalToken() # varName
 
-    def __writeIdentifier(self, name, category, definition=False):
+    def __isClassScope(self, category):
+        return category in self.__classDecKeywords or category in self.__subroutineKeywords
+
+    def __writeIdentifier(self, name, category, varType=None):
         symbolState = "used"
-        if definition:
+        currentTable = None
+        recordSymbol = False
+        if category != "class" and category != "subroutine":
+            recordSymbol = True
+        if self.__isClassScope(category):
+            currentTable = self.__classSymbolTable
+        else:
+            currentTable = self.__subroutineSymbolTable
+
+        if varType is not None:
             symbolState = "defined"
-        self.__writeNonterminalElementOpen("identifier") # className
+            if recordSymbol:
+                currentTable.define(name, varType, category.upper())
+        self.__writeNonterminalElementOpen("identifier") # identifier
         self.__writeTerminalElement("name", name)
         self.__writeTerminalElement("category", category)
-        self.__writeTerminalElement("state", symbolState)
+        if currentTable is not None:
+            self.__writeTerminalElement("state", symbolState)
+        if recordSymbol:
+            self.__writeTerminalElement("runningIndex", currentTable.indexOf(name))
+
+
         self.__writeNonterminalElementClose("identifier")
         self.__advanceToken()
 
@@ -276,8 +296,8 @@ class CompilationEngine:
     def compileSubroutine(self):
         self.__writeNonterminalElementOpen("subroutineDec")
         self.__writeTerminalToken() # 'constructor' | 'function' | 'method'
-        self.__writeTerminalToken() # 'void' | type
-        self.__writeTerminalToken() # subroutineName
+        subroutineReturnType = self.__writeTerminalToken() # 'void' | type
+        self.__writeIdentifier(self.currentToken["text"],"subroutine",subroutineReturnType["text"]) # subroutineName
         self.__writeTerminalToken() # (
         self.compileParameterList()
         self.__writeTerminalToken() # )
@@ -301,14 +321,16 @@ class CompilationEngine:
     def compileVarDec(self):
         self.__writeNonterminalElementOpen("varDec")
         self.__writeTerminalToken() # var
-        self.__writeTerminalToken() # 'void' | type
-        self.__writeTerminalToken() # varName
+
+        varType = self.__writeTerminalToken() # type
+        self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
+
 
         # (',' varName)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             while self.currentToken["text"] != ";":
                 self.__writeTerminalToken() # ,
-                self.__writeTerminalToken() # varName
+                self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
         
         self.__writeTerminalToken() # ;        
         self.__writeNonterminalElementClose("varDec")
