@@ -309,13 +309,13 @@ class CompilationEngine:
             self.__writeNonterminalElementClose("parameterList")
         else:
             argType = self.__writeType() # type
-            self.__writeIdentifier(self.currentToken["text"],"arg",argType["text"]) # varName
+            self.__writeIdentifier(self.currentToken["text"],"argument",argType["text"]) # varName
             loopCount = 0
 
             while not(self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")"):
                 self.__writeTerminalToken() # ,
                 argType = self.__writeType() # type
-                self.__writeIdentifier(self.currentToken["text"],"arg",argType["text"]) # varName
+                self.__writeIdentifier(self.currentToken["text"],"argument",argType["text"]) # varName
                 loopCount += 1
 
                 if loopCount > 25:
