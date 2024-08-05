@@ -22,7 +22,7 @@ class CompilationEngine:
         self.__classDecKeywords = set(["class"])
         self.__subroutineKeywords = set(["constructor", "method", "function"])
         self.__statementKeywords = set(["let","do","if","while","return"])
-
+        self.__typeKeywords = set(["boolean","int","char"])
         self.__tagConstants = set(["integerConstant", "stringConstant"])
         self.__keywordConstants = set(["true", "false", "null", "this"])
         self.__lookAheadSymbols = set(["[","(","."])
@@ -166,6 +166,14 @@ class CompilationEngine:
     def __isClassScope(self, category):
         return category in self.__classDecKeywords or category in self.__subroutineKeywords
 
+    def __writeType(self):
+        if self.currentToken["text"] in self.__typeKeywords:
+            return self.__writeTerminalToken()
+        else:
+            userDefinedType = self.currentToken
+            self.__writeIdentifier(self.currentToken["text"], "class")
+            return userDefinedType
+
     def __writeIdentifier(self, name, category, varType=None):
         symbolState = "used"
         currentTable = None
@@ -193,6 +201,15 @@ class CompilationEngine:
         self.__writeNonterminalElementClose("identifier")
         self.__advanceToken()
 
+    #searches all symbol tables, starting with subroutine
+    #Returns Kind if found, None if not found in either table
+    def __findSymbolKind(self, name):
+        if self.__subroutineSymbolTable.kindOf(name) != None:
+            return self.__subroutineSymbolTable.kindOf(name)
+        elif self.__classSymbolTable.kindOf(name) != None:
+            return self.__classSymbolTable.kindOf(name)
+        else:
+            return None
 
     def compileClass(self):
         finishedClassCompile = False
@@ -222,7 +239,7 @@ class CompilationEngine:
     def compileClassVarDec(self):
         self.__writeNonterminalElementOpen("classVarDec")
         self.__writeTerminalToken() # 'static' | 'field'
-        self.__writeTerminalToken() # type
+        self.__writeType() # type
         self.__writeTerminalToken() # varName
         
         # (',' varName)* zero or more consecutive varNames, comma delimited
@@ -270,15 +287,15 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("varDec")
         self.__writeTerminalToken() # var
 
-        varType = self.__writeTerminalToken() # type
-        self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
+        varType = self.__writeType() # type
+        self.__writeIdentifier(self.currentToken["text"],"VAR",varType["text"]) # varName
 
 
         # (',' varName)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             while self.currentToken["text"] != ";":
                 self.__writeTerminalToken() # ,
-                self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
+                self.__writeIdentifier(self.currentToken["text"],"VAR",varType["text"]) # varName
         
         self.__writeTerminalToken() # ;        
         self.__writeNonterminalElementClose("varDec")
@@ -289,13 +306,13 @@ class CompilationEngine:
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
             self.__writeNonterminalElementClose("parameterList")
         else:
-            self.__writeTerminalToken() # type
+            self.__writeType() # type
             self.__writeTerminalToken() # varName
             loopCount = 0
 
             while not(self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")"):
                 self.__writeTerminalToken() # ,
-                self.__writeTerminalToken() # type
+                self.__writeType() # type
                 self.__writeTerminalToken() # varName
                 loopCount += 1
                 if loopCount > 25:
@@ -332,7 +349,7 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("letStatement")
 
         self.__writeTerminalToken() # let
-        self.__writeTerminalToken() # varName
+        self.__writeIdentifier(self.currentToken["text"], "VAR")
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "[":
             self.__writeTerminalToken() # [
@@ -433,7 +450,11 @@ class CompilationEngine:
                 self.__compileSubroutineCall()
             elif self.currentToken["text"] == "[" :
                 self.__regressToken()
-                self.__writeTerminalToken() # varName
+                symbolKind = self.__findSymbolKind(self.currentToken["text"])
+                if symbolKind == None:
+                    symbolKind = "class"
+                
+                self.__writeIdentifier(self.currentToken["text"], symbolKind) # className | varName
                 self.__writeTerminalToken() # [
                 self.compileExpression()
                 self.__writeTerminalToken() # ]
@@ -441,9 +462,13 @@ class CompilationEngine:
                 sys.exit("ERROR: array and advanced expressions not implemented")
         else:   
             self.__regressToken() # backtrack after looking forward
-            if self.__isConstant(self.currentToken) or self.currentToken["tag"] == "identifier":
+            if self.__isConstant(self.currentToken):
                 self.__writeTerminalToken() # integerConstant | stringConstant | keywordConstant | varName
-
+            elif self.currentToken["tag"] == "identifier":
+                symbolKind = self.__findSymbolKind(self.currentToken["text"])
+                if symbolKind == None:
+                    symbolKind = "class"
+                self.__writeIdentifier(self.currentToken["text"], symbolKind) # varName | className
             elif self.__isUnaryOp(self.currentToken):
                 self.__writeTerminalToken() # unaryOp
                 self.compileTerm()
@@ -459,15 +484,23 @@ class CompilationEngine:
         self.__writeNonterminalElementClose("term")
 
     def __compileSubroutineCall(self):
-        self.__writeTerminalToken() # subRoutineName | (className | varName)
+        self.__advanceToken() # lookahead for dot or open paren
         if self.currentToken["tag"] == "symbol":
             if self.currentToken["text"] == "(":
+                self.__regressToken() # ok go back
+                self.__writeIdentifier(self.currentToken["text"], "subroutine") # subroutineName
                 self.__writeTerminalToken() # (
                 self.compileExpressionList()
                 self.__writeTerminalToken() # )
             elif self.currentToken["text"] == ".":
+                self.__regressToken() # ok go back
+                symbolKind = self.__findSymbolKind(self.currentToken["text"])
+                if symbolKind == None:
+                    symbolKind = "class"
+                
+                self.__writeIdentifier(self.currentToken["text"], symbolKind) # className | varName
                 self.__writeTerminalToken() # .
-                self.__writeTerminalToken() # subRoutineName
+                self.__writeIdentifier(self.currentToken["text"], "subroutine") # subRoutineName
                 self.__writeTerminalToken() # (
                 self.compileExpressionList()
                 self.__writeTerminalToken() # )

@@ -43,7 +43,7 @@ class SymbolTable :
         if name in self.__table:
             return self.__table[name]["kind"]
         else:
-            return "NONE"
+            return None
     
     def typeOf(self, name):
         if name in self.__table:
