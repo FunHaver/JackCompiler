@@ -19,11 +19,9 @@ class CompilationEngine:
         self.__indentLevel = 0
 
         self.__classVarDecKeywords = set(["field", "static"])
-        self.__varDecKeywords = set(["var"])
         self.__classDecKeywords = set(["class"])
         self.__subroutineKeywords = set(["constructor", "method", "function"])
         self.__statementKeywords = set(["let","do","if","while","return"])
-        self.__typeKeywords = set(["int","char","boolean"])
 
         self.__tagConstants = set(["integerConstant", "stringConstant"])
         self.__keywordConstants = set(["true", "false", "null", "this"])
@@ -77,15 +75,6 @@ class CompilationEngine:
             writeString += "  "
         writeString = writeString + "</" + tagName + ">" + os.linesep
         self.compiledFile.write(writeString)
-   
-    # def __isClassDecKeyword(self, token):
-    #     if token["tag"] == "keyword":
-    #         if token["text"] in self.__classDecKeywords:
-    #             return True
-    #         else:
-    #             return False
-    #     else:
-    #         return False
 
     def __isClassVarDecKeyword(self, token):
         if token["tag"] == "keyword":
@@ -95,15 +84,6 @@ class CompilationEngine:
                 return False
         else:
             return False
-    
-    # def __isVarDecKeyword(self,token):
-    #     if token["tag"] == "keyword":
-    #         if token["text"] in self.__varDecKeywords:
-    #             return True
-    #         else:
-    #             return False
-    #     else: 
-    #         return False
 
     def __isSubroutineDecKeyword(self, token):
         if token["tag"] == "keyword":
@@ -122,18 +102,6 @@ class CompilationEngine:
                 return False
         else:
             return False
-        
-    # def __isTypeKeyword(self, token):
-    #     if token["tag"] == "keyword":
-    #         if token["text"] in self.__typeKeywords:
-    #             return True
-    #         else:
-    #             return False
-    #     else:
-    #         return False
-        
-    # def __isArgDec(self, token):
-    #     return self.__isTypeKeyword(token) or token["tag"] == "identifier"
         
     def __isConstant(self, token):
         if token["tag"] in self.__tagConstants:
@@ -194,26 +162,6 @@ class CompilationEngine:
     def __isCloseCurlyBrace(self,token):
         return token["tag"] == "symbol" and token["text"] == "}"
 
-
-    # Builds a symbol out of the identifier and related tokens
-    # final token processed in __compileIdentifier must be an identifier
-    # TODO: Assess need for removal
-    # def __compileIdentifier(self):
-
-    #     if self.__isClassDecKeyword(self.currentToken):
-    #         self.__writeTerminalToken() # class
-    #         self.__writeTerminalToken() # className
-    #     elif self.__isClassVarDecKeyword(self.currentToken) or self.__isVarDecKeyword(self.currentToken):
-    #         self.__writeTerminalToken() # static | field | var
-    #         self.__writeTerminalToken() # int | char | boolean | className
-    #         self.__writeTerminalToken() # varName
-    #     elif self.__isSubroutineDecKeyword(self.currentToken):
-    #         self.__writeTerminalToken() # constructor | function | method
-    #         self.__writeTerminalToken() # type | void
-    #         self.__writeTerminalToken() # subroutineName
-    #     elif self.__isArgDec(self.currentToken):
-    #         self.__writeTerminalToken() # int | boolean | char | className
-    #         self.__writeTerminalToken() # varName
 
     def __isClassScope(self, category):
         return category in self.__classDecKeywords or category in self.__subroutineKeywords
