@@ -41,7 +41,7 @@ class SymbolTable :
     
     def kindOf(self, name):
         if name in self.__table:
-            return self.__table[name]["kind"]
+            return self.__table[name]["kind"].lower()
         else:
             return None
     
@@ -58,3 +58,6 @@ class SymbolTable :
             return self.__table[name]["index"]
         else:
             return -1
+        
+    def printTable(self):
+        print(self.__table)

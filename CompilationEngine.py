@@ -164,10 +164,10 @@ class CompilationEngine:
 
 
     def __isClassScope(self, category):
-        return category in self.__classDecKeywords or category in self.__subroutineKeywords
+        return category in self.__classVarDecKeywords
 
     def __writeType(self):
-        if self.currentToken["text"] in self.__typeKeywords:
+        if self.currentToken["text"] in self.__typeKeywords or self.currentToken["text"] == "void":
             return self.__writeTerminalToken()
         else:
             userDefinedType = self.currentToken
@@ -217,7 +217,7 @@ class CompilationEngine:
 
         self.__writeNonterminalElementOpen("class")
         self.__writeTerminalToken() # class
-        self.__writeIdentifier(self.currentToken["text"], "class", True) # className
+        self.__writeIdentifier(self.currentToken["text"], "class") # className
         self.__writeTerminalToken() # {
         
         while not finishedClassCompile:
@@ -238,16 +238,17 @@ class CompilationEngine:
 
     def compileClassVarDec(self):
         self.__writeNonterminalElementOpen("classVarDec")
+        classVarKind = self.currentToken
         self.__writeTerminalToken() # 'static' | 'field'
-        self.__writeType() # type
-        self.__writeTerminalToken() # varName
+        classVarType = self.__writeType() # type
+        self.__writeIdentifier(self.currentToken["text"],classVarKind["text"], classVarType["text"]) # varName
         
         # (',' varName)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             loopCount = 0
             while self.currentToken["text"] != ";":
                 self.__writeTerminalToken() # ,
-                self.__writeTerminalToken() # varName
+                self.__writeIdentifier(self.currentToken["text"],classVarKind["text"], classVarType["text"]) # varName
                 loopCount += 1
 
                 if loopCount > 25:
@@ -259,9 +260,10 @@ class CompilationEngine:
 
 
     def compileSubroutine(self):
+        self.__subroutineSymbolTable.startSubroutine()
         self.__writeNonterminalElementOpen("subroutineDec")
         self.__writeTerminalToken() # 'constructor' | 'function' | 'method'
-        subroutineReturnType = self.__writeTerminalToken() # 'void' | type
+        subroutineReturnType = self.__writeType() # 'void' | type
         self.__writeIdentifier(self.currentToken["text"],"subroutine",subroutineReturnType["text"]) # subroutineName
         self.__writeTerminalToken() # (
         self.compileParameterList()
@@ -288,14 +290,14 @@ class CompilationEngine:
         self.__writeTerminalToken() # var
 
         varType = self.__writeType() # type
-        self.__writeIdentifier(self.currentToken["text"],"VAR",varType["text"]) # varName
+        self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
 
 
         # (',' varName)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             while self.currentToken["text"] != ";":
                 self.__writeTerminalToken() # ,
-                self.__writeIdentifier(self.currentToken["text"],"VAR",varType["text"]) # varName
+                self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
         
         self.__writeTerminalToken() # ;        
         self.__writeNonterminalElementClose("varDec")
@@ -306,15 +308,16 @@ class CompilationEngine:
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
             self.__writeNonterminalElementClose("parameterList")
         else:
-            self.__writeType() # type
-            self.__writeTerminalToken() # varName
+            argType = self.__writeType() # type
+            self.__writeIdentifier(self.currentToken["text"],"arg",argType["text"]) # varName
             loopCount = 0
 
             while not(self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")"):
                 self.__writeTerminalToken() # ,
-                self.__writeType() # type
-                self.__writeTerminalToken() # varName
+                argType = self.__writeType() # type
+                self.__writeIdentifier(self.currentToken["text"],"arg",argType["text"]) # varName
                 loopCount += 1
+
                 if loopCount > 25:
                     print("Stuck in infinite loop, improperly formed parameter list")
                     self.__exitError()
@@ -349,7 +352,8 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("letStatement")
 
         self.__writeTerminalToken() # let
-        self.__writeIdentifier(self.currentToken["text"], "VAR")
+        
+        self.__writeIdentifier(self.currentToken["text"], self.__findSymbolKind(self.currentToken["text"]))
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "[":
             self.__writeTerminalToken() # [
@@ -452,7 +456,7 @@ class CompilationEngine:
                 self.__regressToken()
                 symbolKind = self.__findSymbolKind(self.currentToken["text"])
                 if symbolKind == None:
-                    symbolKind = "class"
+                    symbolKind = "CLASS"
                 
                 self.__writeIdentifier(self.currentToken["text"], symbolKind) # className | varName
                 self.__writeTerminalToken() # [
