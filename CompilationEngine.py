@@ -1,13 +1,14 @@
 import xml.etree.ElementTree as ElementTree
 from xml.sax.saxutils import escape, unescape
 import copy
-import SymbolTable
+import SymbolTable, VMWriter
 import os, sys
 
 class CompilationEngine:
     def __init__(self, tokenFile, compiledFile):
         self.tokenFile = tokenFile
         self.compiledFile = compiledFile
+        self.vmWriter = VMWriter.VMWriter(compiledFile)
         self.__tokenList = []
         # The token xml file is flat. There is no recursion needed to get the information
         for child in ElementTree.parse(self.tokenFile).getroot():
@@ -19,7 +20,6 @@ class CompilationEngine:
         self.__indentLevel = 0
 
         self.__classVarDecKeywords = set(["field", "static"])
-        self.__classDecKeywords = set(["class"])
         self.__subroutineKeywords = set(["constructor", "method", "function"])
         self.__statementKeywords = set(["let","do","if","while","return"])
         self.__typeKeywords = set(["boolean","int","char"])
@@ -28,6 +28,8 @@ class CompilationEngine:
         self.__lookAheadSymbols = set(["[","(","."])
         self.__unaryOps = set(["-","~"])
         self.__opSymbols = set(["+","-","*","/","&","|","<",">","="])
+        self.__osOperators = set(["*","/"])
+        self.__primitiveOperators = set(["+","-","~","=",">","<","&","|"])
 
 
     def __advanceToken(self):
@@ -46,6 +48,7 @@ class CompilationEngine:
         sys.exit("ERROR: Token " + str(self.__tokenIdx + 1) + " Invalid token '" + self.currentToken["text"] + "' in " + self.tokenFile.name)
 
     def __writeTerminalElement(self, tag, text):
+        return
         writeString = ""
         for x in range(self.__indentLevel):
             writeString += "  "
@@ -61,6 +64,7 @@ class CompilationEngine:
         return writtenToken
 
     def __writeNonterminalElementOpen(self, tagName):
+        return
         writeString = ""
         for x in range(self.__indentLevel):
             writeString += "  "
@@ -69,6 +73,7 @@ class CompilationEngine:
         self.__indentLevel += 1
 
     def __writeNonterminalElementClose(self, tagName):
+        return
         self.__indentLevel += -1
         writeString = ""
         for x in range(self.__indentLevel):
@@ -210,6 +215,20 @@ class CompilationEngine:
             return self.__classSymbolTable.kindOf(name)
         else:
             return None
+        
+    # converts op symbol to VM command
+    def __convertToVmCommand(self, opSymbol):
+        if opSymbol == "+":
+            return "ADD"
+        else:
+            sys.exit("Cannot convert symbol to operation: " + opSymbol)
+        
+    # writes a call to an OS level function into the VM
+    def __callOSFunction(self, symbol):
+        if symbol == "*":
+            self.vmWriter.writeCall("Math.multiply", 2)
+        else:
+            sys.exit("ERROR: unknown symbol " + symbol)
 
     def compileClass(self):
         finishedClassCompile = False
@@ -217,6 +236,7 @@ class CompilationEngine:
 
         self.__writeNonterminalElementOpen("class")
         self.__writeTerminalToken() # class
+        self.__className = self.currentToken["text"] # class
         self.__writeIdentifier(self.currentToken["text"], "class") # className
         self.__writeTerminalToken() # {
         
@@ -264,10 +284,12 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("subroutineDec")
         self.__writeTerminalToken() # 'constructor' | 'function' | 'method'
         subroutineReturnType = self.__writeType() # 'void' | type
+        subroutineName = self.__className + "." + self.currentToken["text"]
         self.__writeIdentifier(self.currentToken["text"],"subroutine",subroutineReturnType["text"]) # subroutineName
         self.__writeTerminalToken() # (
-        self.compileParameterList()
+        nLocals = self.compileParameterList()
         self.__writeTerminalToken() # )
+        self.vmWriter.writeFunction(subroutineName, nLocals)
         self.__writeNonterminalElementOpen("subroutineBody")
         self.__writeTerminalToken() # {
 
@@ -283,6 +305,8 @@ class CompilationEngine:
         
         self.__writeTerminalToken() # }
         self.__writeNonterminalElementClose("subroutineBody")
+        if subroutineReturnType["text"] == "void":
+            self.vmWriter.writePush("CONST", str(0))
         self.__writeNonterminalElementClose("subroutineDec")
 
     def compileVarDec(self):
@@ -303,6 +327,7 @@ class CompilationEngine:
         self.__writeNonterminalElementClose("varDec")
 
     def compileParameterList(self):
+        nLocals = 0
         self.__writeNonterminalElementOpen("parameterList")
         # ((type varName) (',' type varName)*)?
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
@@ -310,9 +335,11 @@ class CompilationEngine:
         else:
             argType = self.__writeType() # type
             self.__writeIdentifier(self.currentToken["text"],"argument",argType["text"]) # varName
+            nLocals = 1
             loopCount = 0
 
             while not(self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")"):
+                nLocals += 1
                 self.__writeTerminalToken() # ,
                 argType = self.__writeType() # type
                 self.__writeIdentifier(self.currentToken["text"],"argument",argType["text"]) # varName
@@ -324,6 +351,7 @@ class CompilationEngine:
 
             
             self.__writeNonterminalElementClose("parameterList")
+        return nLocals
 
 
     def compileStatements(self):
@@ -404,6 +432,7 @@ class CompilationEngine:
         
         self.__writeTerminalToken() # do
         self.__compileSubroutineCall()
+        self.vmWriter.writePop("TEMP", "0") # ignore VOID return value
         self.__writeTerminalToken() # ;
 
         self.__writeNonterminalElementClose("doStatement")
@@ -426,22 +455,31 @@ class CompilationEngine:
             self.compileTerm()
 
             if self.__isOp(self.currentToken):
-                self.__writeTerminalToken() # op
+                arithmeticOperator = self.currentToken["text"]
+                self.__advanceToken()
+                self.compileTerm()
+                if arithmeticOperator in self.__osOperators:
+                    self.__callOSFunction(arithmeticOperator)
+                elif arithmeticOperator in self.__primitiveOperators:
+                    self.vmWriter.writeArithmetic(self.__convertToVmCommand(arithmeticOperator))
+                else:
+                    print("Unknown operator " + arithmeticOperator)
         self.__writeNonterminalElementClose("expression")
 
     def compileExpressionList(self):
         self.__writeNonterminalElementOpen("expressionList")
-        loopCount = 0
+        argCount = 0
         while self.__isTerm(self.currentToken):
             self.compileExpression()
+            argCount += 1
             if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
                 break
             self.__writeTerminalToken() # ,
-            loopCount += 1
-            if loopCount > 25:
+            if argCount > 25:
                 print("Stuck in infinite loop, improperly formed expression list")
                 self.__exitError()
         self.__writeNonterminalElementClose("expressionList")
+        return argCount
 
     def compileTerm(self):
         self.__writeNonterminalElementOpen("term")
@@ -462,12 +500,13 @@ class CompilationEngine:
                 self.__writeTerminalToken() # [
                 self.compileExpression()
                 self.__writeTerminalToken() # ]
-            else: 
-                sys.exit("ERROR: array and advanced expressions not implemented")
         else:   
             self.__regressToken() # backtrack after looking forward
             if self.__isConstant(self.currentToken):
-                self.__writeTerminalToken() # integerConstant | stringConstant | keywordConstant | varName
+                constantValue = self.currentToken["text"]
+                self.__writeTerminalToken() 
+                # yikes I don't think this handles strings or keywords yet
+                self.vmWriter.writePush("CONST", constantValue) # integerConstant | stringConstant | keywordConstant
             elif self.currentToken["tag"] == "identifier":
                 symbolKind = self.__findSymbolKind(self.currentToken["text"])
                 if symbolKind == None:
@@ -501,10 +540,13 @@ class CompilationEngine:
                 symbolKind = self.__findSymbolKind(self.currentToken["text"])
                 if symbolKind == None:
                     symbolKind = "class"
-                
+                routineName = self.currentToken["text"]
                 self.__writeIdentifier(self.currentToken["text"], symbolKind) # className | varName
+                routineName = routineName + self.currentToken["text"]
                 self.__writeTerminalToken() # .
+                routineName = routineName + self.currentToken["text"]
                 self.__writeIdentifier(self.currentToken["text"], "subroutine") # subRoutineName
                 self.__writeTerminalToken() # (
-                self.compileExpressionList()
+                nArgs = self.compileExpressionList()
                 self.__writeTerminalToken() # )
+                self.vmWriter.writeCall(routineName, nArgs)

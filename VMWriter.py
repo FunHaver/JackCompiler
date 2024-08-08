@@ -1,3 +1,5 @@
+import os, sys
+
 class VMWriter:
     
     # Creates a new VM file and prepares it for writing
@@ -5,22 +7,47 @@ class VMWriter:
         self.outFile = outFile
         print("construct VMWriter")
 
+
+    def __segmentDecoder(self, segment):
+        if segment == "CONST":
+            return "constant"
+        elif segment == "ARG":
+            return "argument"
+        elif segment == "LOCAL":
+            return "local"
+        elif segment == "STATIC":
+            return "static"
+        elif segment == "THIS":
+            return "this"
+        elif segment == "THAT":
+            return "that"
+        elif segment == "POINTER":
+            return "pointer"
+        elif segment == "TEMP":
+            return "temp"
+        else:
+            sys.exit("ERROR: Unknown segment " + segment)
+        
     # Writes a VM Push command
     # segment: (CONST, ARG, LOCAL, STATIC, THIS, THAT, POINTER, TEMP)
     # index: int
     def writePush(self, segment, index):
-        print("implement writePush")
+        self.outFile.write("push " + self.__segmentDecoder(segment) + " " + index + os.linesep)
 
     # Writes a VM Pop command
     # segment: (CONST, ARG, LOCAL, STATIC, THIS, THAT, POINTER, TEMP)
     # index: int
     def writePop(self, segment, index):
+        self.outFile.write("pop " + self.__segmentDecoder(segment) + " " + index + os.linesep)
         print("implement writePop")
 
     # Writes a VM Arithmetic command
     # command: (ADD, SUB, NEG, EQ, GT, LR, AND, OR, NOT)
     def writeArithmetic(self, command):
-        print("implement writeArithmetic")
+        if command == "ADD":
+            self.outFile.write("add" + os.linesep)
+        else:
+            print("implement writeArithmetic for " + command)
 
     # Writes a VM label command
     # label: String
@@ -41,14 +68,14 @@ class VMWriter:
     # name: String
     # nArgs: int
     def writeCall(self, name, nArgs):
-        print("implement writeCall")
+        self.outFile.write("call " + name + " " + str(nArgs) + os.linesep)
 
     # Writes a vm call command
     # name: String
     # nLocals: int
     # Writes a vm function command
     def writeFunction(self, name, nLocals):
-        print("implement writeFunction")
+        self.outFile.write("function " + name + " " + str(nLocals) + os.linesep)
 
     # Writes a vm return command
     def writeReturn(self):
