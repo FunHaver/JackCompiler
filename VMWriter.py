@@ -3,8 +3,8 @@ import os, sys
 class VMWriter:
     
     # Creates a new VM file and prepares it for writing
-    def __init__(self, outFile):
-        self.outFile = outFile
+    def __init__(self, outFilePath):
+        self.outFile = open(outFilePath,"w",encoding="utf-8")
         print("construct VMWriter")
 
 
@@ -55,23 +55,27 @@ class VMWriter:
             self.outFile.write("and" + os.linesep)
         elif command == "NEG":
             self.outFile.write("neg" + os.linesep)
+        elif command == "NOT":
+            self.outFile.write("not" + os.linesep)
+        elif command == "EQ":
+            self.outFile.write("eq" + os.linesep)
         else:
             print("implement writeArithmetic for " + command)
 
     # Writes a VM label command
     # label: String
     def writeLabel(self, label):
-        print("implement writeLabel")
+        self.outFile.write("label " + label.upper() + os.linesep)
 
     # Writes a VM goto command
     # label: String
     def writeGoto(self, label):
-        print("implement writeGoto")
+        self.outFile.write("goto " + label.upper() + os.linesep)
 
     # Writes a VM if-goto command
     # label: String
     def writeIf(self, label):
-        print("implement writeIf")
+        self.outFile.write("if-goto " + label.upper() + os.linesep)
 
     # Writes a vm call command
     # name: String
@@ -88,8 +92,8 @@ class VMWriter:
 
     # Writes a vm return command
     def writeReturn(self):
-        print("implement writeReturn")
+        self.outFile.write("return" + os.linesep)
 
     # closes output file
     def close(self):
-        print("implement close")
+        self.outFile.close()
