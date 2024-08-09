@@ -215,11 +215,29 @@ class CompilationEngine:
             return self.__classSymbolTable.kindOf(name)
         else:
             return None
+
+    #searches all symbol tables, starting with subroutine
+    #Returns index int if found, -1 if not found in either table 
+    def __findSymbolIdx(self, name):
+        if self.__subroutineSymbolTable.indexOf(name) != -1:
+            return self.__subroutineSymbolTable.indexOf(name)
+        elif self.__classSymbolTable.indexOf(name) != -1:
+            return self.__classSymbolTable.indexOf(name)
+        else:
+            return -1
         
     # converts op symbol to VM command
     def __convertToVmCommand(self, opSymbol):
         if opSymbol == "+":
             return "ADD"
+        elif opSymbol == "<":
+            return "LT"
+        elif opSymbol == ">":
+            return "GT"
+        elif opSymbol == "&":
+            return "AND"
+        elif opSymbol == "-":
+            return "NEG"
         else:
             sys.exit("Cannot convert symbol to operation: " + opSymbol)
         
@@ -314,14 +332,20 @@ class CompilationEngine:
         self.__writeTerminalToken() # var
 
         varType = self.__writeType() # type
+        varName = self.currentToken["text"]
         self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
+        self.vmWriter.writePush("CONST", "0")
+        self.vmWriter.writePop("LOCAL",self.__subroutineSymbolTable.indexOf(varName))
 
 
         # (',' varName)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             while self.currentToken["text"] != ";":
                 self.__writeTerminalToken() # ,
+                varName = self.currentToken["text"]
                 self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
+                self.vmWriter.writePush("CONST", "0")
+                self.vmWriter.writePop("LOCAL",self.__subroutineSymbolTable.indexOf(varName))
         
         self.__writeTerminalToken() # ;        
         self.__writeNonterminalElementClose("varDec")
@@ -334,7 +358,7 @@ class CompilationEngine:
             self.__writeNonterminalElementClose("parameterList")
         else:
             argType = self.__writeType() # type
-            self.__writeIdentifier(self.currentToken["text"],"argument",argType["text"]) # varName
+            self.__writeIdentifier(self.currentToken["text"],"ARG",argType["text"]) # varName
             nLocals = 1
             loopCount = 0
 
@@ -342,7 +366,7 @@ class CompilationEngine:
                 nLocals += 1
                 self.__writeTerminalToken() # ,
                 argType = self.__writeType() # type
-                self.__writeIdentifier(self.currentToken["text"],"argument",argType["text"]) # varName
+                self.__writeIdentifier(self.currentToken["text"],"ARG",argType["text"]) # varName
                 loopCount += 1
 
                 if loopCount > 25:
@@ -380,7 +404,7 @@ class CompilationEngine:
         self.__writeNonterminalElementOpen("letStatement")
 
         self.__writeTerminalToken() # let
-        
+        variable = self.currentToken["text"]
         self.__writeIdentifier(self.currentToken["text"], self.__findSymbolKind(self.currentToken["text"]))
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "[":
@@ -389,7 +413,8 @@ class CompilationEngine:
             self.__writeTerminalToken() # ]
 
         self.__writeTerminalToken() # =
-        self.compileExpression() 
+        self.compileExpression()
+        self.vmWriter.writePop(self.__findSymbolKind(variable),self.__findSymbolIdx(variable))
         self.__writeTerminalToken() # ;
         self.__writeNonterminalElementClose("letStatement")
 
@@ -427,6 +452,7 @@ class CompilationEngine:
 
         self.__writeNonterminalElementClose("whileStatement")
 
+    #Do statements are always used with void return functions
     def compileDo(self):
         self.__writeNonterminalElementOpen("doStatement")
         
@@ -481,6 +507,16 @@ class CompilationEngine:
         self.__writeNonterminalElementClose("expressionList")
         return argCount
 
+    # compiles constant to VM language equivalent
+    def __compileConstant(self, jackConstant):
+        if jackConstant == "true":
+            self.vmWriter.writePush("CONST","1")
+            self.vmWriter.writeArithmetic("NEG")
+        elif jackConstant == "false" or jackConstant == "null":
+            self.vmWriter.writePush("CONST","0")
+        else:
+            self.vmWriter.writePush("CONST", jackConstant)
+
     def compileTerm(self):
         self.__writeNonterminalElementOpen("term")
         previousToken = copy.deepcopy(self.currentToken)
@@ -505,16 +541,20 @@ class CompilationEngine:
             if self.__isConstant(self.currentToken):
                 constantValue = self.currentToken["text"]
                 self.__writeTerminalToken() 
-                # yikes I don't think this handles strings or keywords yet
-                self.vmWriter.writePush("CONST", constantValue) # integerConstant | stringConstant | keywordConstant
+                # yikes this does not handle strings yet!
+                self.__compileConstant(constantValue) # integerConstant | stringConstant | keywordConstant
+                 
             elif self.currentToken["tag"] == "identifier":
                 symbolKind = self.__findSymbolKind(self.currentToken["text"])
                 if symbolKind == None:
                     symbolKind = "class"
                 self.__writeIdentifier(self.currentToken["text"], symbolKind) # varName | className
             elif self.__isUnaryOp(self.currentToken):
+                unaryOp = self.currentToken["text"]
                 self.__writeTerminalToken() # unaryOp
                 self.compileTerm()
+                self.vmWriter.writeArithmetic(self.__convertToVmCommand(unaryOp))
+
             
             elif self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "(":
                 self.__writeTerminalToken() # (

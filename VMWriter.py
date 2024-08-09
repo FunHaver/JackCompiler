@@ -9,11 +9,12 @@ class VMWriter:
 
 
     def __segmentDecoder(self, segment):
+        segment = segment.upper()
         if segment == "CONST":
             return "constant"
         elif segment == "ARG":
             return "argument"
-        elif segment == "LOCAL":
+        elif segment == "LOCAL" or segment == "VAR":
             return "local"
         elif segment == "STATIC":
             return "static"
@@ -32,20 +33,28 @@ class VMWriter:
     # segment: (CONST, ARG, LOCAL, STATIC, THIS, THAT, POINTER, TEMP)
     # index: int
     def writePush(self, segment, index):
-        self.outFile.write("push " + self.__segmentDecoder(segment) + " " + index + os.linesep)
+        self.outFile.write("push " + self.__segmentDecoder(segment) + " " + str(index) + os.linesep)
 
     # Writes a VM Pop command
     # segment: (CONST, ARG, LOCAL, STATIC, THIS, THAT, POINTER, TEMP)
     # index: int
     def writePop(self, segment, index):
-        self.outFile.write("pop " + self.__segmentDecoder(segment) + " " + index + os.linesep)
-        print("implement writePop")
+        self.outFile.write("pop " + self.__segmentDecoder(segment) + " " + str(index) + os.linesep)
 
     # Writes a VM Arithmetic command
     # command: (ADD, SUB, NEG, EQ, GT, LR, AND, OR, NOT)
     def writeArithmetic(self, command):
+        command = command.upper()
         if command == "ADD":
             self.outFile.write("add" + os.linesep)
+        elif command == "LT":
+            self.outFile.write("lt" + os.linesep)
+        elif command == "GT":
+            self.outFile.write("gt" + os.linesep)
+        elif command == "AND":
+            self.outFile.write("and" + os.linesep)
+        elif command == "NEG":
+            self.outFile.write("neg" + os.linesep)
         else:
             print("implement writeArithmetic for " + command)
 
