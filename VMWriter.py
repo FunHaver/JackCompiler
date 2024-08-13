@@ -5,7 +5,6 @@ class VMWriter:
     # Creates a new VM file and prepares it for writing
     def __init__(self, outFilePath):
         self.outFile = open(outFilePath,"w",encoding="utf-8")
-        print("construct VMWriter")
 
 
     def __segmentDecoder(self, segment):
@@ -18,7 +17,7 @@ class VMWriter:
             return "local"
         elif segment == "STATIC":
             return "static"
-        elif segment == "THIS":
+        elif segment == "FIELD":
             return "this"
         elif segment == "THAT":
             return "that"
@@ -55,6 +54,8 @@ class VMWriter:
             self.outFile.write("and" + os.linesep)
         elif command == "NEG":
             self.outFile.write("neg" + os.linesep)
+        elif command == "SUB":
+            self.outFile.write("sub" + os.linesep)
         elif command == "NOT":
             self.outFile.write("not" + os.linesep)
         elif command == "EQ":

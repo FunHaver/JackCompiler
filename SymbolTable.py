@@ -49,7 +49,7 @@ class SymbolTable :
         if name in self.__table:
             return self.__table[name]["type"]
         else:
-            sys.exit("ERROR: symbol " + name + " is not defined in current scope.")
+            return None
 
     # Gets the index of the variable, indexes are separated by kind.
     # Returns -1 if symbol is not found

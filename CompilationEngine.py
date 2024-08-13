@@ -227,9 +227,18 @@ class CompilationEngine:
             return self.__classSymbolTable.indexOf(name)
         else:
             return -1
-        
-    # converts op symbol to VM command
-    def __convertToVmCommand(self, opSymbol):
+    #searches all symbol tables, starting with subroutine
+    #Returns type as string if found, None if not found in either table 
+    def __findSymbolType(self, name):
+        if self.__subroutineSymbolTable.typeOf(name) != None:
+            return self.__subroutineSymbolTable.typeOf(name)
+        elif self.__classSymbolTable.typeOf(name) != None:
+            return self.__classSymbolTable.typeOf(name)
+        else:
+            return None
+    
+    # converts op symbol to binary arithmetic (takes two off stack, returns one) VM command
+    def __convertToArithVmCommand(self, opSymbol):
         if opSymbol == "+":
             return "ADD"
         elif opSymbol == "<":
@@ -239,20 +248,50 @@ class CompilationEngine:
         elif opSymbol == "&":
             return "AND"
         elif opSymbol == "-":
-            return "NEG"
-        elif opSymbol == "~":
-            return "NOT"
+            return "SUB"
         elif opSymbol == "=":
             return "EQ"
         else:
-            sys.exit("Cannot convert symbol to operation: " + opSymbol)
-        
-    # writes a call to an OS level function into the VM
-    def __callOSFunction(self, symbol):
+            sys.exit("Cannot convert symbol to arithmetic operation: " + opSymbol)
+   
+    # converts op symbol to unary arithmetic (takes one off stack, returns one) VM command
+    def __convertToUnaryVmCommand(self, opSymbol):
+        if opSymbol == "-":
+            return "NEG"
+        elif opSymbol == "~":
+            return "NOT"
+        else:
+            sys.exit("Cannot convert symbol to unary operation: " + opSymbol)
+
+    # writes a call to an OS-defined operation function into the VM
+    def __callOsMath(self, symbol):
         if symbol == "*":
             self.vmWriter.writeCall("Math.multiply", 2)
         else:
             sys.exit("ERROR: unknown symbol " + symbol)
+
+    def __addToSymbolTable(self):
+        segment = self.currentToken["text"]
+        if segment == "var":
+            varDecType = "varDec"
+        else:
+            varDecType = "classVarDec"
+        
+        self.__writeNonterminalElementOpen(varDecType)
+        self.__writeTerminalToken() # var | field | static
+
+        varType = self.__writeType() # type
+        self.__writeIdentifier(self.currentToken["text"],segment,varType["text"]) # identifier
+
+
+        # (',' identifier)* zero or more consecutive varNames, comma delimited
+        if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
+            while self.currentToken["text"] != ";":
+                self.__writeTerminalToken() # ,
+                self.__writeIdentifier(self.currentToken["text"],segment,varType["text"]) # identifier
+        
+        self.__writeTerminalToken() # ;        
+        self.__writeNonterminalElementClose(varDecType)
 
     def compileClass(self):
         finishedClassCompile = False
@@ -263,12 +302,12 @@ class CompilationEngine:
         self.__className = self.currentToken["text"] # class
         self.__writeIdentifier(self.currentToken["text"], "class") # className
         self.__writeTerminalToken() # {
-        
-        while not finishedClassCompile:
+        while self.currentToken["tag"] == "keyword" and (self.currentToken["text"] == "static" or self.currentToken["text"] == "field"):
+            self.__addToSymbolTable()
 
-            if self.__isClassVarDecKeyword(self.currentToken):
-                self.compileClassVarDec()
-            elif self.__isSubroutineDecKeyword(self.currentToken):
+        self.compileClassVarDec()
+        while not finishedClassCompile:
+            if self.__isSubroutineDecKeyword(self.currentToken):
                 self.compileSubroutine() 
             elif self.__isCloseCurlyBrace(self.currentToken): # THE LAST TOKEN IN A JACK FILE
                 self.__writeTerminalToken() # }
@@ -282,32 +321,25 @@ class CompilationEngine:
 
 
     def compileClassVarDec(self):
-        self.__writeNonterminalElementOpen("classVarDec")
-        classVarKind = self.currentToken
-        self.__writeTerminalToken() # 'static' | 'field'
-        classVarType = self.__writeType() # type
-        self.__writeIdentifier(self.currentToken["text"],classVarKind["text"], classVarType["text"]) # varName
-        
-        # (',' varName)* zero or more consecutive varNames, comma delimited
-        if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
-            loopCount = 0
-            while self.currentToken["text"] != ";":
-                self.__writeTerminalToken() # ,
-                self.__writeIdentifier(self.currentToken["text"],classVarKind["text"], classVarType["text"]) # varName
-                loopCount += 1
+        for x in range(self.__classSymbolTable.varCount("STATIC")): 
+            self.vmWriter.writePush("CONST", "0")
+            self.vmWriter.writePop("STATIC",x)
+  
 
-                if loopCount > 25:
-                    print("ERROR: Stuck in loop writing var defs, did you forget a ';' ?")
-                    self.__exitError()
-        
-        self.__writeTerminalToken() # ;
-        self.__writeNonterminalElementClose("classVarDec")
-
+    def __allocateObjectMemory(self):
+        self.vmWriter.writePush("CONST", self.__classSymbolTable.varCount("FIELD"))
+        self.vmWriter.writeCall("Memory.alloc", "1")
+        self.vmWriter.writePop("POINTER",0)
+        for x in range(self.__classSymbolTable.varCount("FIELD")): 
+            self.vmWriter.writePush("CONST","0")
+            self.vmWriter.writePop("FIELD",x)
 
     def compileSubroutine(self):
         self.__subroutineSymbolTable.startSubroutine()
         self.__writeNonterminalElementOpen("subroutineDec")
+        subroutineKind = self.currentToken["text"]
         self.__writeTerminalToken() # 'constructor' | 'function' | 'method'
+        
         subroutineReturnType = self.__writeType() # 'void' | type
         self.__subroutineName = self.currentToken["text"]
         self.__writeIdentifier(self.currentToken["text"],"subroutine",subroutineReturnType["text"]) # subroutineName
@@ -320,9 +352,17 @@ class CompilationEngine:
         
         # varDec* 
         while self.currentToken["tag"] == "keyword" and self.currentToken["text"] == "var":
-            self.__addVarDecsToSymbolTable()
+            self.__addToSymbolTable()
 
+        # So we know the number of vars in the fn defition signature
         self.vmWriter.writeFunction(self.__className + "." + self.__subroutineName, str(self.__subroutineSymbolTable.varCount("VAR")))
+        if subroutineKind == "constructor":
+            self.__allocateObjectMemory()
+        elif subroutineKind == "method":
+        # methods have an "invisible" argument 0 of the base address of the object
+            self.vmWriter.writePush("ARG",0)
+            self.vmWriter.writePop("POINTER",0)
+        
         self.compileVarDec()            
         
         # statements
@@ -336,23 +376,6 @@ class CompilationEngine:
         else:
             print("ERROR: subroutines must be defined as variable declarations followed by statements followed by a } symbol.")
             self.__exitError()
-
-    def __addVarDecsToSymbolTable(self):
-        self.__writeNonterminalElementOpen("varDec")
-        self.__writeTerminalToken() # var
-
-        varType = self.__writeType() # type
-        self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
-
-
-        # (',' varName)* zero or more consecutive varNames, comma delimited
-        if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
-            while self.currentToken["text"] != ";":
-                self.__writeTerminalToken() # ,
-                self.__writeIdentifier(self.currentToken["text"],"var",varType["text"]) # varName
-        
-        self.__writeTerminalToken() # ;        
-        self.__writeNonterminalElementClose("varDec")
 
     def compileVarDec(self):
         for x in range(self.__subroutineSymbolTable.varCount("VAR")): 
@@ -403,7 +426,6 @@ class CompilationEngine:
                 self.compileReturn() 
             else:
                 self.__exitError()
-        self.__labelCounter = 0
         self.__writeNonterminalElementClose("statements")
 
     def compileLet(self):
@@ -504,9 +526,9 @@ class CompilationEngine:
                 self.__advanceToken()
                 self.compileTerm()
                 if arithmeticOperator in self.__osOperators:
-                    self.__callOSFunction(arithmeticOperator)
+                    self.__callOsMath(arithmeticOperator)
                 elif arithmeticOperator in self.__primitiveOperators:
-                    self.vmWriter.writeArithmetic(self.__convertToVmCommand(arithmeticOperator))
+                    self.vmWriter.writeArithmetic(self.__convertToArithVmCommand(arithmeticOperator))
                 else:
                     print("Unknown operator " + arithmeticOperator)
         self.__writeNonterminalElementClose("expression")
@@ -533,6 +555,8 @@ class CompilationEngine:
             self.vmWriter.writeArithmetic("NEG")
         elif jackConstant == "false" or jackConstant == "null":
             self.vmWriter.writePush("CONST","0")
+        elif jackConstant == "this":
+            self.vmWriter.writePush("POINTER","0")
         else:
             self.vmWriter.writePush("CONST", jackConstant)
 
@@ -574,7 +598,7 @@ class CompilationEngine:
                 unaryOp = self.currentToken["text"]
                 self.__writeTerminalToken() # unaryOp
                 self.compileTerm()
-                self.vmWriter.writeArithmetic(self.__convertToVmCommand(unaryOp))
+                self.vmWriter.writeArithmetic(self.__convertToUnaryVmCommand(unaryOp))
 
             
             elif self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "(":
@@ -590,24 +614,44 @@ class CompilationEngine:
     def __compileSubroutineCall(self):
         self.__advanceToken() # lookahead for dot or open paren
         if self.currentToken["tag"] == "symbol":
+            # method
             if self.currentToken["text"] == "(":
                 self.__regressToken() # ok go back
+                routineName = self.__className + "." + self.currentToken["text"]
                 self.__writeIdentifier(self.currentToken["text"], "subroutine") # subroutineName
                 self.__writeTerminalToken() # (
-                self.compileExpressionList()
+                self.vmWriter.writePush("POINTER",0)
+                nArgs = self.compileExpressionList()
                 self.__writeTerminalToken() # )
+                self.vmWriter.writeCall(routineName, nArgs + 1)
             elif self.currentToken["text"] == ".":
                 self.__regressToken() # ok go back
                 symbolKind = self.__findSymbolKind(self.currentToken["text"])
+                nArgs = 0
+                methodMemberClass = None
                 if symbolKind == None:
                     symbolKind = "class"
-                routineName = self.currentToken["text"]
-                self.__writeIdentifier(self.currentToken["text"], symbolKind) # className | varName
-                routineName = routineName + self.currentToken["text"]
-                self.__writeTerminalToken() # .
-                routineName = routineName + self.currentToken["text"]
+
+                # if symbolKind == class => function, else it is a method (I THINK)
+                # routineName = self.currentToken["text"]
+                if symbolKind != "class":
+                    nArgs = 1
+                    self.vmWriter.writePush(self.__findSymbolKind(self.currentToken["text"]), self.__findSymbolIdx(self.currentToken["text"]))
+                    methodMemberClass = self.__findSymbolType(self.currentToken["text"])
+                    if methodMemberClass == None:
+                        sys.exit("ERROR: cannot find object for type " + self.currentToken["text"])
+                    self.__writeIdentifier(self.currentToken["text"], symbolKind) # varName
+                    self.__writeTerminalToken() # .
+                    routineName = methodMemberClass + "." + self.currentToken["text"]
+
+                else:
+                    routineName = self.currentToken["text"]
+                    self.__writeIdentifier(self.currentToken["text"], symbolKind) # className 
+                    self.__writeTerminalToken() # .
+                    routineName = routineName + "." + self.currentToken["text"]
+
                 self.__writeIdentifier(self.currentToken["text"], "subroutine") # subRoutineName
                 self.__writeTerminalToken() # (
-                nArgs = self.compileExpressionList()
+                nArgs += self.compileExpressionList()
                 self.__writeTerminalToken() # )
                 self.vmWriter.writeCall(routineName, nArgs)
