@@ -267,6 +267,8 @@ class CompilationEngine:
     def __callOsMath(self, symbol):
         if symbol == "*":
             self.vmWriter.writeCall("Math.multiply", 2)
+        elif symbol == "/":
+            self.vmWriter.writeCall("Math.divide", 2)
         else:
             sys.exit("ERROR: unknown symbol " + symbol)
 
@@ -292,6 +294,17 @@ class CompilationEngine:
         
         self.__writeTerminalToken() # ;        
         self.__writeNonterminalElementClose(varDecType)
+
+    #sets THAT 0 to address of array item (array pointer + index)
+    def __setThatToArrayItem(self,variable):
+        self.__writeTerminalToken() # [
+        self.compileExpression() 
+        self.__writeTerminalToken() # ]
+        # push arr pointer to stack
+        self.vmWriter.writePush(self.__findSymbolKind(variable),self.__findSymbolIdx(variable))
+        self.vmWriter.writeArithmetic("ADD") # add base address + pointer
+        # pop to pointer 1 segment, our special array buddy
+        self.vmWriter.writePop("POINTER",1)
 
     def compileClass(self):
         finishedClassCompile = False
@@ -433,16 +446,19 @@ class CompilationEngine:
 
         self.__writeTerminalToken() # let
         variable = self.currentToken["text"]
-        self.__writeIdentifier(self.currentToken["text"], self.__findSymbolKind(self.currentToken["text"]))
+        self.__writeIdentifier(self.currentToken["text"], self.__findSymbolKind(self.currentToken["text"])) # identifier
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "[":
-            self.__writeTerminalToken() # [
-            self.compileExpression() 
-            self.__writeTerminalToken() # ]
+            self.__setThatToArrayItem(variable)
 
-        self.__writeTerminalToken() # =
-        self.compileExpression()
-        self.vmWriter.writePop(self.__findSymbolKind(variable),self.__findSymbolIdx(variable))
+            self.__writeTerminalToken() # =
+            self.compileExpression()
+            self.vmWriter.writePop("THAT",0)
+
+        else:
+            self.__writeTerminalToken() # =
+            self.compileExpression()
+            self.vmWriter.writePop(self.__findSymbolKind(variable),self.__findSymbolIdx(variable))
         self.__writeTerminalToken() # ;
         self.__writeNonterminalElementClose("letStatement")
 
@@ -548,17 +564,35 @@ class CompilationEngine:
         self.__writeNonterminalElementClose("expressionList")
         return argCount
 
+    def __stringConstantAssignment(self, value):
+        self.vmWriter.writePush("CONST", str(len(value))) # get len of str
+        self.vmWriter.writeCall("String.new", 1) # construct String obj
+        self.vmWriter.writePop("TEMP", 0) # Save new string pointer
+        for char in value.encode("ascii"):
+            self.vmWriter.writePush("TEMP", 0) # Push new string pointer onto stack (THIS)
+            self.vmWriter.writePush("CONST",char) # Push char code onto stack
+            self.vmWriter.writeCall("String.appendChar", 2) # appendChar
+        
+        
+
+
+
+
     # compiles constant to VM language equivalent
-    def __compileConstant(self, jackConstant):
-        if jackConstant == "true":
+    def __compileConstant(self, constantTag, constantValue):
+        if constantTag == "stringConstant":
+            self.__stringConstantAssignment(constantValue)
+        elif constantTag == "integerConstant":
+            self.vmWriter.writePush("CONST", constantValue)
+        elif constantValue == "true":
             self.vmWriter.writePush("CONST","1")
             self.vmWriter.writeArithmetic("NEG")
-        elif jackConstant == "false" or jackConstant == "null":
+        elif constantValue == "false" or constantValue == "null":
             self.vmWriter.writePush("CONST","0")
-        elif jackConstant == "this":
+        elif constantValue == "this":
             self.vmWriter.writePush("POINTER","0")
         else:
-            self.vmWriter.writePush("CONST", jackConstant)
+            sys.exit("ERROR: Unknown constant '" + constantValue + "' of type " + constantTag)
 
     def compileTerm(self):
         self.__writeNonterminalElementOpen("term")
@@ -573,19 +607,19 @@ class CompilationEngine:
                 self.__regressToken()
                 symbolKind = self.__findSymbolKind(self.currentToken["text"])
                 if symbolKind == None:
-                    symbolKind = "CLASS"
+                    sys.exit("ERROR: could not find symbol kind for identifier " + self.currentToken)
                 
-                self.__writeIdentifier(self.currentToken["text"], symbolKind) # className | varName
-                self.__writeTerminalToken() # [
-                self.compileExpression()
-                self.__writeTerminalToken() # ]
+                varName = self.currentToken["text"]
+                self.__writeIdentifier(self.currentToken["text"], symbolKind) # varName
+                self.__setThatToArrayItem(varName)
+                self.vmWriter.writePush("THAT",0)
         else:   
             self.__regressToken() # backtrack after looking forward
             if self.__isConstant(self.currentToken):
+                constantTag = self.currentToken["tag"]
                 constantValue = self.currentToken["text"]
                 self.__writeTerminalToken() 
-                # yikes this does not handle strings yet!
-                self.__compileConstant(constantValue) # integerConstant | stringConstant | keywordConstant
+                self.__compileConstant(constantTag, constantValue) # integerConstant | stringConstant | keywordConstant
                  
             elif self.currentToken["tag"] == "identifier":
                 currentIdentifier = self.currentToken["text"]
