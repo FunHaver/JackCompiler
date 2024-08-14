@@ -251,6 +251,8 @@ class CompilationEngine:
             return "SUB"
         elif opSymbol == "=":
             return "EQ"
+        elif opSymbol == "|":
+            return "OR"
         else:
             sys.exit("Cannot convert symbol to arithmetic operation: " + opSymbol)
    
@@ -357,7 +359,7 @@ class CompilationEngine:
         self.__subroutineName = self.currentToken["text"]
         self.__writeIdentifier(self.currentToken["text"],"subroutine",subroutineReturnType["text"]) # subroutineName
         self.__writeTerminalToken() # (
-        self.compileParameterList()
+        self.compileParameterList(subroutineKind == "method")
         self.__writeTerminalToken() # )
         
         self.__writeNonterminalElementOpen("subroutineBody")
@@ -396,8 +398,10 @@ class CompilationEngine:
             self.vmWriter.writePop("LOCAL",x)
 
 
-    def compileParameterList(self):
+    def compileParameterList(self,method=False):
         self.__writeNonterminalElementOpen("parameterList")
+        if method:
+            self.__subroutineSymbolTable.define("that", "pointer", "ARG")
         # ((type varName) (',' type varName)*)?
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
             self.__writeNonterminalElementClose("parameterList")

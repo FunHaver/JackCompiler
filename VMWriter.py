@@ -60,6 +60,8 @@ class VMWriter:
             self.outFile.write("not" + os.linesep)
         elif command == "EQ":
             self.outFile.write("eq" + os.linesep)
+        elif command == "OR":
+            self.outFile.write("or" + os.linesep)
         else:
             print("implement writeArithmetic for " + command)
 
