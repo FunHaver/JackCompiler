@@ -630,8 +630,10 @@ class CompilationEngine:
                 symbolKind = self.__findSymbolKind(currentIdentifier)
                 if symbolKind == None:
                     symbolKind = "class"
-                self.__writeIdentifier(currentIdentifier, symbolKind) # varName | className
-                self.vmWriter.writePush(symbolKind,self.__findSymbolIdx(currentIdentifier))
+                    self.__writeIdentifier(currentIdentifier, symbolKind)
+                else:
+                    self.__writeIdentifier(currentIdentifier, symbolKind) # varName | className
+                    self.vmWriter.writePush(symbolKind,self.__findSymbolIdx(currentIdentifier))
             elif self.__isUnaryOp(self.currentToken):
                 unaryOp = self.currentToken["text"]
                 self.__writeTerminalToken() # unaryOp

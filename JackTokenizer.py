@@ -52,8 +52,13 @@ class JackTokenizer:
                 self.__restChars = self.__restChars + next
                 keyword = keyword + next
                 if keyword in self.__keywords:
-                    keywordFound = True
-                    break
+                    nextNext = self.file.read(1)
+                    if not self.__identifierRegex.match(nextNext):
+                        self.file.seek(self.file.tell() - 1,0)
+                        keywordFound = True
+                        break
+                    self.file.seek(self.file.tell() - 1,0)
+                        
             else:
                 self.file.seek(self.file.tell() - 1,0)
                 break
