@@ -65,33 +65,6 @@ class CompilationEngine:
         self.__advanceToken()
         return writtenToken
 
-    def __writeNonterminalElementOpen(self, tagName):
-        return
-        writeString = ""
-        for x in range(self.__indentLevel):
-            writeString += "  "
-        writeString = writeString + "<" + tagName + ">" + os.linesep
-        self.compiledFile.write(writeString)
-        self.__indentLevel += 1
-
-    def __writeNonterminalElementClose(self, tagName):
-        return
-        self.__indentLevel += -1
-        writeString = ""
-        for x in range(self.__indentLevel):
-            writeString += "  "
-        writeString = writeString + "</" + tagName + ">" + os.linesep
-        self.compiledFile.write(writeString)
-
-    def __isClassVarDecKeyword(self, token):
-        if token["tag"] == "keyword":
-            if token["text"] in self.__classVarDecKeywords:
-                return True
-            else:
-                return False
-        else:
-            return False
-
     def __isSubroutineDecKeyword(self, token):
         if token["tag"] == "keyword":
             if token["text"] in self.__subroutineKeywords:
@@ -196,16 +169,13 @@ class CompilationEngine:
             symbolState = "defined"
             if recordSymbol:
                 currentTable.define(name, varType, category.upper())
-        self.__writeNonterminalElementOpen("identifier") # identifier
+        # identifier
         self.__writeTerminalElement("name", name)
         self.__writeTerminalElement("category", category)
         if currentTable is not None:
             self.__writeTerminalElement("state", symbolState)
         if recordSymbol:
             self.__writeTerminalElement("runningIndex", currentTable.indexOf(name))
-
-
-        self.__writeNonterminalElementClose("identifier")
         self.__advanceToken()
 
     #searches all symbol tables, starting with subroutine
@@ -281,7 +251,6 @@ class CompilationEngine:
         else:
             varDecType = "classVarDec"
         
-        self.__writeNonterminalElementOpen(varDecType)
         self.__writeTerminalToken() # var | field | static
 
         varType = self.__writeType() # type
@@ -295,7 +264,6 @@ class CompilationEngine:
                 self.__writeIdentifier(self.currentToken["text"],segment,varType["text"]) # identifier
         
         self.__writeTerminalToken() # ;        
-        self.__writeNonterminalElementClose(varDecType)
 
     #sets THAT 0 to address of array item (array pointer + index)
     def __setThatToArrayItem(self,variable):
@@ -312,7 +280,6 @@ class CompilationEngine:
         finishedClassCompile = False
         self.__advanceToken()
 
-        self.__writeNonterminalElementOpen("class")
         self.__writeTerminalToken() # class
         self.__className = self.currentToken["text"] # class
         self.__writeIdentifier(self.currentToken["text"], "class") # className
@@ -331,7 +298,6 @@ class CompilationEngine:
                 self.__exitError()
 
 
-        self.__writeNonterminalElementClose("class")
         self.vmWriter.close()
 
 
@@ -351,7 +317,6 @@ class CompilationEngine:
 
     def compileSubroutine(self):
         self.__subroutineSymbolTable.startSubroutine()
-        self.__writeNonterminalElementOpen("subroutineDec")
         subroutineKind = self.currentToken["text"]
         self.__writeTerminalToken() # 'constructor' | 'function' | 'method'
         
@@ -362,7 +327,6 @@ class CompilationEngine:
         self.compileParameterList(subroutineKind == "method")
         self.__writeTerminalToken() # )
         
-        self.__writeNonterminalElementOpen("subroutineBody")
         self.__writeTerminalToken() # {
         
         # varDec* 
@@ -386,8 +350,7 @@ class CompilationEngine:
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "}":
             self.__writeTerminalToken() # }
-            self.__writeNonterminalElementClose("subroutineBody")
-            self.__writeNonterminalElementClose("subroutineDec")
+
         else:
             print("ERROR: subroutines must be defined as variable declarations followed by statements followed by a } symbol.")
             self.__exitError()
@@ -399,12 +362,11 @@ class CompilationEngine:
 
 
     def compileParameterList(self,method=False):
-        self.__writeNonterminalElementOpen("parameterList")
         if method:
             self.__subroutineSymbolTable.define("that", "pointer", "ARG")
         # ((type varName) (',' type varName)*)?
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
-            self.__writeNonterminalElementClose("parameterList")
+            return
         else:
             argType = self.__writeType() # type
             self.__writeIdentifier(self.currentToken["text"],"ARG",argType["text"]) # varName
@@ -422,11 +384,7 @@ class CompilationEngine:
                     print("Stuck in infinite loop, improperly formed parameter list")
                     self.__exitError()
 
-            
-            self.__writeNonterminalElementClose("parameterList")
-
     def compileStatements(self):
-        self.__writeNonterminalElementOpen("statements")
 
         if self.currentToken["tag"] != "keyword" and not(self.__isCloseCurlyBrace(self.currentToken)):
             sys.exit("ERROR: Statement must begin with keyword")
@@ -443,10 +401,8 @@ class CompilationEngine:
                 self.compileReturn() 
             else:
                 self.__exitError()
-        self.__writeNonterminalElementClose("statements")
 
     def compileLet(self):
-        self.__writeNonterminalElementOpen("letStatement")
 
         self.__writeTerminalToken() # let
         variable = self.currentToken["text"]
@@ -468,10 +424,8 @@ class CompilationEngine:
             self.compileExpression()
             self.vmWriter.writePop(self.__findSymbolKind(variable),self.__findSymbolIdx(variable))
         self.__writeTerminalToken() # ;
-        self.__writeNonterminalElementClose("letStatement")
 
     def compileIf(self):
-        self.__writeNonterminalElementOpen("ifStatement")
         elseLabel = self.__className + "_" + self.__subroutineName + "_" + "else_" + str(self.__labelCounter)
         endIfLabel = self.__className + "_" + self.__subroutineName + "_" + "endIf_" + str(self.__labelCounter)
         self.__labelCounter += 1
@@ -492,10 +446,8 @@ class CompilationEngine:
             self.compileStatements()
             self.__writeTerminalToken() # }
         self.vmWriter.writeLabel(endIfLabel)
-        self.__writeNonterminalElementClose("ifStatement")
 
     def compileWhile(self):
-        self.__writeNonterminalElementOpen("whileStatement")
         startLabel = self.__className + "_" + self.__subroutineName + "_" + "while_" + str(self.__labelCounter)
         endLabel = startLabel + "_end"
         self.__labelCounter += 1
@@ -512,21 +464,17 @@ class CompilationEngine:
         self.vmWriter.writeGoto(startLabel)
         self.vmWriter.writeLabel(endLabel)
 
-        self.__writeNonterminalElementClose("whileStatement")
 
     #Do statements are always used with void return functions
     def compileDo(self):
-        self.__writeNonterminalElementOpen("doStatement")
         
         self.__writeTerminalToken() # do
         self.__compileSubroutineCall()
         self.vmWriter.writePop("TEMP", "0") # ignore VOID return value
         self.__writeTerminalToken() # ;
 
-        self.__writeNonterminalElementClose("doStatement")
 
     def compileReturn(self):
-        self.__writeNonterminalElementOpen("returnStatement")
 
         self.__writeTerminalToken() # return
 
@@ -538,10 +486,8 @@ class CompilationEngine:
         self.vmWriter.writeReturn()
         self.__writeTerminalToken() # ;
 
-        self.__writeNonterminalElementClose("returnStatement")
 
     def compileExpression(self):
-        self.__writeNonterminalElementOpen("expression")
         while self.__isTerm(self.currentToken) or self.__isOp(self.currentToken):
             if self.__isTerm(self.currentToken):
                 self.compileTerm()
@@ -556,10 +502,8 @@ class CompilationEngine:
                     self.vmWriter.writeArithmetic(self.__convertToArithVmCommand(arithmeticOperator))
                 else:
                     print("Unknown operator " + arithmeticOperator)
-        self.__writeNonterminalElementClose("expression")
 
     def compileExpressionList(self):
-        self.__writeNonterminalElementOpen("expressionList")
         argCount = 0
         while self.__isTerm(self.currentToken):
             self.compileExpression()
@@ -570,7 +514,6 @@ class CompilationEngine:
             if argCount > 25:
                 print("Stuck in infinite loop, improperly formed expression list")
                 self.__exitError()
-        self.__writeNonterminalElementClose("expressionList")
         return argCount
 
     def __stringConstantAssignment(self, value):
@@ -604,7 +547,6 @@ class CompilationEngine:
             sys.exit("ERROR: Unknown constant '" + constantValue + "' of type " + constantTag)
 
     def compileTerm(self):
-        self.__writeNonterminalElementOpen("term")
         previousToken = copy.deepcopy(self.currentToken)
         self.__advanceToken()
         
@@ -654,7 +596,6 @@ class CompilationEngine:
             elif self.__isTerm(self.currentToken):
                 self.compileTerm()
 
-        self.__writeNonterminalElementClose("term")
 
     def __compileSubroutineCall(self):
         self.__advanceToken() # lookahead for dot or open paren
