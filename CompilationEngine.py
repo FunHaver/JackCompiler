@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ElementTree
 from xml.sax.saxutils import escape, unescape
 import copy
 import SymbolTable, VMWriter
-import os, sys
+import sys
 
 class CompilationEngine:
     def __init__(self, tokenFile, compiledFilePath):
@@ -17,7 +17,6 @@ class CompilationEngine:
         self.__classSymbolTable = SymbolTable.SymbolTable()
         self.__subroutineSymbolTable = SymbolTable.SymbolTable()
         self.__tokenIdx = -1
-        self.__indentLevel = 0
         self.__className = ""
         self.__subroutineName = ""
         self.__labelCounter = 0
@@ -48,15 +47,6 @@ class CompilationEngine:
         
     def __exitError(self):
         sys.exit("ERROR: Token " + str(self.__tokenIdx + 1) + " Invalid token '" + self.currentToken["text"] + "' in " + self.tokenFile.name)
-
-    def __writeTerminalElement(self, tag, text):
-        return
-        writeString = ""
-        for x in range(self.__indentLevel):
-            writeString += "  "
-
-        writeString = writeString + "<" + tag + "> " + escape(str(text)) + " </" + tag + ">" + os.linesep
-        self.compiledFile.write(writeString)
 
     def __isSubroutineDecKeyword(self, token):
         if token["tag"] == "keyword":
@@ -150,7 +140,6 @@ class CompilationEngine:
             return userDefinedType
 
     def __writeIdentifier(self, name, category, varType=None):
-        symbolState = "used"
         currentTable = None
         recordSymbol = False
         if category != "class" and category != "subroutine":
@@ -160,17 +149,8 @@ class CompilationEngine:
         else:
             currentTable = self.__subroutineSymbolTable
 
-        if varType is not None:
-            symbolState = "defined"
-            if recordSymbol:
+        if varType is not None and recordSymbol:
                 currentTable.define(name, varType, category.upper())
-        # identifier
-        self.__writeTerminalElement("name", name)
-        self.__writeTerminalElement("category", category)
-        if currentTable is not None:
-            self.__writeTerminalElement("state", symbolState)
-        if recordSymbol:
-            self.__writeTerminalElement("runningIndex", currentTable.indexOf(name))
         self.__advanceToken()
 
     #searches all symbol tables, starting with subroutine
@@ -514,11 +494,6 @@ class CompilationEngine:
             self.vmWriter.writePush("CONST",char) # Push char code onto stack
             self.vmWriter.writeCall("String.appendChar", 2) # appendChar
         
-        
-
-
-
-
     # compiles constant to VM language equivalent
     def __compileConstant(self, constantTag, constantValue):
         if constantTag == "stringConstant":
