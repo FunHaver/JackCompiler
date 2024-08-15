@@ -542,8 +542,9 @@ class CompilationEngine:
 
     def compileExpression(self):
         self.__writeNonterminalElementOpen("expression")
-        while self.__isTerm(self.currentToken):
-            self.compileTerm()
+        while self.__isTerm(self.currentToken) or self.__isOp(self.currentToken):
+            if self.__isTerm(self.currentToken):
+                self.compileTerm()
 
             if self.__isOp(self.currentToken):
                 arithmeticOperator = self.currentToken["text"]
