@@ -139,7 +139,7 @@ class CompilationEngine:
         elif token["tag"] == "identifier":
             return True
         elif token["tag"] == "symbol":
-            if token["text"] == "(":
+            if token["text"] == "(" or token["text"] == "[":
                 return True
             elif self.__isUnaryOp(token):
                 return True
@@ -453,10 +453,14 @@ class CompilationEngine:
         self.__writeIdentifier(self.currentToken["text"], self.__findSymbolKind(self.currentToken["text"])) # identifier
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "[":
-            self.__setThatToArrayItem(variable)
-
+            
+            self.__setThatToArrayItem(variable) 
+            self.vmWriter.writePush("POINTER",1)
+            self.vmWriter.writePop("TEMP",1) # temporarily store the THAT pointer for variable assignment in TEMP
             self.__writeTerminalToken() # =
             self.compileExpression()
+            self.vmWriter.writePush("TEMP",1) # retrieve destination var's pointer from TEMP
+            self.vmWriter.writePop("POINTER",1)
             self.vmWriter.writePop("THAT",0)
 
         else:
