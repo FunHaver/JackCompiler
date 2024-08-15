@@ -57,13 +57,6 @@ class CompilationEngine:
 
         writeString = writeString + "<" + tag + "> " + escape(str(text)) + " </" + tag + ">" + os.linesep
         self.compiledFile.write(writeString)
-        
-    # returns the token that was written
-    def __writeTerminalToken(self):
-        self.__writeTerminalElement(self.currentToken["tag"], self.currentToken["text"])
-        writtenToken = copy.deepcopy(self.currentToken)
-        self.__advanceToken()
-        return writtenToken
 
     def __isSubroutineDecKeyword(self, token):
         if token["tag"] == "keyword":
@@ -148,7 +141,9 @@ class CompilationEngine:
 
     def __writeType(self):
         if self.currentToken["text"] in self.__typeKeywords or self.currentToken["text"] == "void":
-            return self.__writeTerminalToken()
+            writtenType = self.currentToken
+            self.__advanceToken()
+            return writtenType
         else:
             userDefinedType = self.currentToken
             self.__writeIdentifier(self.currentToken["text"], "class")
@@ -246,30 +241,24 @@ class CompilationEngine:
 
     def __addToSymbolTable(self):
         segment = self.currentToken["text"]
-        if segment == "var":
-            varDecType = "varDec"
-        else:
-            varDecType = "classVarDec"
-        
-        self.__writeTerminalToken() # var | field | static
-
-        varType = self.__writeType() # type
+        self.__advanceToken()
+        varType = self.__writeType() # var | field | static | className
         self.__writeIdentifier(self.currentToken["text"],segment,varType["text"]) # identifier
 
 
         # (',' identifier)* zero or more consecutive varNames, comma delimited
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ",":
             while self.currentToken["text"] != ";":
-                self.__writeTerminalToken() # ,
+                self.__advanceToken() # ,
                 self.__writeIdentifier(self.currentToken["text"],segment,varType["text"]) # identifier
         
-        self.__writeTerminalToken() # ;        
+        self.__advanceToken() # ;        
 
     #sets THAT 0 to address of array item (array pointer + index)
     def __setThatToArrayItem(self,variable):
-        self.__writeTerminalToken() # [
+        self.__advanceToken() # [
         self.compileExpression() 
-        self.__writeTerminalToken() # ]
+        self.__advanceToken() # ]
         # push arr pointer to stack
         self.vmWriter.writePush(self.__findSymbolKind(variable),self.__findSymbolIdx(variable))
         self.vmWriter.writeArithmetic("ADD") # add base address + pointer
@@ -279,11 +268,11 @@ class CompilationEngine:
     def compileClass(self):
         finishedClassCompile = False
         self.__advanceToken()
+        self.__advanceToken() # class
 
-        self.__writeTerminalToken() # class
         self.__className = self.currentToken["text"] # class
         self.__writeIdentifier(self.currentToken["text"], "class") # className
-        self.__writeTerminalToken() # {
+        self.__advanceToken() # {
         while self.currentToken["tag"] == "keyword" and (self.currentToken["text"] == "static" or self.currentToken["text"] == "field"):
             self.__addToSymbolTable()
 
@@ -292,7 +281,7 @@ class CompilationEngine:
             if self.__isSubroutineDecKeyword(self.currentToken):
                 self.compileSubroutine() 
             elif self.__isCloseCurlyBrace(self.currentToken): # THE LAST TOKEN IN A JACK FILE
-                self.__writeTerminalToken() # }
+                self.__advanceToken() # }
                 finishedClassCompile = True
             else:
                 self.__exitError()
@@ -318,16 +307,16 @@ class CompilationEngine:
     def compileSubroutine(self):
         self.__subroutineSymbolTable.startSubroutine()
         subroutineKind = self.currentToken["text"]
-        self.__writeTerminalToken() # 'constructor' | 'function' | 'method'
+        self.__advanceToken() # 'constructor' | 'function' | 'method'
         
         subroutineReturnType = self.__writeType() # 'void' | type
         self.__subroutineName = self.currentToken["text"]
         self.__writeIdentifier(self.currentToken["text"],"subroutine",subroutineReturnType["text"]) # subroutineName
-        self.__writeTerminalToken() # (
+        self.__advanceToken() # (
         self.compileParameterList(subroutineKind == "method")
-        self.__writeTerminalToken() # )
+        self.__advanceToken() # )
         
-        self.__writeTerminalToken() # {
+        self.__advanceToken() # {
         
         # varDec* 
         while self.currentToken["tag"] == "keyword" and self.currentToken["text"] == "var":
@@ -349,7 +338,7 @@ class CompilationEngine:
             self.compileStatements()
 
         if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "}":
-            self.__writeTerminalToken() # }
+            self.__advanceToken() # }
 
         else:
             print("ERROR: subroutines must be defined as variable declarations followed by statements followed by a } symbol.")
@@ -375,7 +364,7 @@ class CompilationEngine:
 
             while not(self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")"):
                 nLocals += 1
-                self.__writeTerminalToken() # ,
+                self.__advanceToken() # ,
                 argType = self.__writeType() # type
                 self.__writeIdentifier(self.currentToken["text"],"ARG",argType["text"]) # varName
                 loopCount += 1
@@ -404,7 +393,7 @@ class CompilationEngine:
 
     def compileLet(self):
 
-        self.__writeTerminalToken() # let
+        self.__advanceToken() # let
         variable = self.currentToken["text"]
         self.__writeIdentifier(self.currentToken["text"], self.__findSymbolKind(self.currentToken["text"])) # identifier
 
@@ -413,54 +402,54 @@ class CompilationEngine:
             self.__setThatToArrayItem(variable) 
             self.vmWriter.writePush("POINTER",1)
             self.vmWriter.writePop("TEMP",1) # temporarily store the THAT pointer for variable assignment in TEMP
-            self.__writeTerminalToken() # =
+            self.__advanceToken() # =
             self.compileExpression()
             self.vmWriter.writePush("TEMP",1) # retrieve destination var's pointer from TEMP
             self.vmWriter.writePop("POINTER",1)
             self.vmWriter.writePop("THAT",0)
 
         else:
-            self.__writeTerminalToken() # =
+            self.__advanceToken() # =
             self.compileExpression()
             self.vmWriter.writePop(self.__findSymbolKind(variable),self.__findSymbolIdx(variable))
-        self.__writeTerminalToken() # ;
+        self.__advanceToken() # ;
 
     def compileIf(self):
         elseLabel = self.__className + "_" + self.__subroutineName + "_" + "else_" + str(self.__labelCounter)
         endIfLabel = self.__className + "_" + self.__subroutineName + "_" + "endIf_" + str(self.__labelCounter)
         self.__labelCounter += 1
-        self.__writeTerminalToken() # if
-        self.__writeTerminalToken() # (
+        self.__advanceToken() # if
+        self.__advanceToken() # (
         self.compileExpression() 
-        self.__writeTerminalToken() # )
+        self.__advanceToken() # )
         self.vmWriter.writeArithmetic("NOT")
         self.vmWriter.writeIf(elseLabel)
-        self.__writeTerminalToken() # {
+        self.__advanceToken() # {
         self.compileStatements()
         self.vmWriter.writeGoto(endIfLabel)
-        self.__writeTerminalToken() # }
+        self.__advanceToken() # }
         self.vmWriter.writeLabel(elseLabel)
         if self.currentToken["tag"] == "keyword" and self.currentToken["text"] == "else":
-            self.__writeTerminalToken() # else
-            self.__writeTerminalToken() # {
+            self.__advanceToken() # else
+            self.__advanceToken() # {
             self.compileStatements()
-            self.__writeTerminalToken() # }
+            self.__advanceToken() # }
         self.vmWriter.writeLabel(endIfLabel)
 
     def compileWhile(self):
         startLabel = self.__className + "_" + self.__subroutineName + "_" + "while_" + str(self.__labelCounter)
         endLabel = startLabel + "_end"
         self.__labelCounter += 1
-        self.__writeTerminalToken() # while
+        self.__advanceToken() # while
         self.vmWriter.writeLabel(startLabel)
-        self.__writeTerminalToken() # (
+        self.__advanceToken() # (
         self.compileExpression() 
-        self.__writeTerminalToken() # )
+        self.__advanceToken() # )
         self.vmWriter.writeArithmetic("NOT")
         self.vmWriter.writeIf(endLabel)
-        self.__writeTerminalToken() # {
+        self.__advanceToken() # {
         self.compileStatements()
-        self.__writeTerminalToken() # }
+        self.__advanceToken() # }
         self.vmWriter.writeGoto(startLabel)
         self.vmWriter.writeLabel(endLabel)
 
@@ -468,15 +457,15 @@ class CompilationEngine:
     #Do statements are always used with void return functions
     def compileDo(self):
         
-        self.__writeTerminalToken() # do
+        self.__advanceToken() # do
         self.__compileSubroutineCall()
         self.vmWriter.writePop("TEMP", "0") # ignore VOID return value
-        self.__writeTerminalToken() # ;
+        self.__advanceToken() # ;
 
 
     def compileReturn(self):
 
-        self.__writeTerminalToken() # return
+        self.__advanceToken() # return
 
         if self.currentToken["tag"] != "symbol" and self.currentToken["text"] != ";":
             self.compileExpression()
@@ -484,7 +473,7 @@ class CompilationEngine:
             self.vmWriter.writePush("CONST","0")
 
         self.vmWriter.writeReturn()
-        self.__writeTerminalToken() # ;
+        self.__advanceToken() # ;
 
 
     def compileExpression(self):
@@ -510,7 +499,7 @@ class CompilationEngine:
             argCount += 1
             if self.currentToken["tag"] == "symbol" and self.currentToken["text"] == ")":
                 break
-            self.__writeTerminalToken() # ,
+            self.__advanceToken() # ,
             if argCount > 25:
                 print("Stuck in infinite loop, improperly formed expression list")
                 self.__exitError()
@@ -569,7 +558,7 @@ class CompilationEngine:
             if self.__isConstant(self.currentToken):
                 constantTag = self.currentToken["tag"]
                 constantValue = self.currentToken["text"]
-                self.__writeTerminalToken() 
+                self.__advanceToken() 
                 self.__compileConstant(constantTag, constantValue) # integerConstant | stringConstant | keywordConstant
                  
             elif self.currentToken["tag"] == "identifier":
@@ -583,15 +572,15 @@ class CompilationEngine:
                     self.vmWriter.writePush(symbolKind,self.__findSymbolIdx(currentIdentifier))
             elif self.__isUnaryOp(self.currentToken):
                 unaryOp = self.currentToken["text"]
-                self.__writeTerminalToken() # unaryOp
+                self.__advanceToken() # unaryOp
                 self.compileTerm()
                 self.vmWriter.writeArithmetic(self.__convertToUnaryVmCommand(unaryOp))
 
             
             elif self.currentToken["tag"] == "symbol" and self.currentToken["text"] == "(":
-                self.__writeTerminalToken() # (
+                self.__advanceToken() # (
                 self.compileExpression()
-                self.__writeTerminalToken() # )
+                self.__advanceToken() # )
 
             elif self.__isTerm(self.currentToken):
                 self.compileTerm()
@@ -605,10 +594,10 @@ class CompilationEngine:
                 self.__regressToken() # ok go back
                 routineName = self.__className + "." + self.currentToken["text"]
                 self.__writeIdentifier(self.currentToken["text"], "subroutine") # subroutineName
-                self.__writeTerminalToken() # (
+                self.__advanceToken() # (
                 self.vmWriter.writePush("POINTER",0)
                 nArgs = self.compileExpressionList()
-                self.__writeTerminalToken() # )
+                self.__advanceToken() # )
                 self.vmWriter.writeCall(routineName, nArgs + 1)
             elif self.currentToken["text"] == ".":
                 self.__regressToken() # ok go back
@@ -627,17 +616,17 @@ class CompilationEngine:
                     if methodMemberClass == None:
                         sys.exit("ERROR: cannot find object for type " + self.currentToken["text"])
                     self.__writeIdentifier(self.currentToken["text"], symbolKind) # varName
-                    self.__writeTerminalToken() # .
+                    self.__advanceToken() # .
                     routineName = methodMemberClass + "." + self.currentToken["text"]
 
                 else:
                     routineName = self.currentToken["text"]
                     self.__writeIdentifier(self.currentToken["text"], symbolKind) # className 
-                    self.__writeTerminalToken() # .
+                    self.__advanceToken() # .
                     routineName = routineName + "." + self.currentToken["text"]
 
                 self.__writeIdentifier(self.currentToken["text"], "subroutine") # subRoutineName
-                self.__writeTerminalToken() # (
+                self.__advanceToken() # (
                 nArgs += self.compileExpressionList()
-                self.__writeTerminalToken() # )
+                self.__advanceToken() # )
                 self.vmWriter.writeCall(routineName, nArgs)
