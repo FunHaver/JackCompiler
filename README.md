@@ -2,7 +2,7 @@
 
 A Python implementation of the JACK Compiler for the JACK programming language. Specified in NAND2TETRIS projects 10 and 11.
 
-This program read files containing Jack code specified in Part 2 of the NAND2TETRIS course and outputs a VM "bytecode" file for each Jack file. The VM language is specified in NAND2TETRIS Part 2.
+This program reads files containing Jack code specified in Part 2 of the NAND2TETRIS course and outputs a VM "bytecode" file for each Jack file. The VM language is specified in NAND2TETRIS Part 2.
 
 ## Usage
 **System Requirements**
